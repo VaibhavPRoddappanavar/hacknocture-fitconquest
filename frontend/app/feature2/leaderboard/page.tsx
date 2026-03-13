@@ -18,7 +18,11 @@ export default function Leaderboard() {
       url.searchParams.append("type", type);
       if (value) url.searchParams.append("value", value);
 
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), {
+        headers: {
+            'ngrok-skip-browser-warning': 'true'
+        }
+      });
       if (res.ok) {
         setUsers(await res.json());
       }

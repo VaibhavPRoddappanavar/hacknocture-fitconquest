@@ -19,7 +19,10 @@ export default function Feature2() {
   const fetchUser = async (token: string) => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true'
+        },
       });
       if (res.ok) {
         const data = await res.json();
@@ -38,7 +41,10 @@ export default function Feature2() {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+        },
         body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
@@ -56,7 +62,11 @@ export default function Feature2() {
 
   const fetchChallenges = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/challenges`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/challenges`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
       if (res.ok) {
         setChallenges(await res.json());
       }
@@ -72,6 +82,7 @@ export default function Feature2() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("fit_token")}`,
+          "ngrok-skip-browser-warning": "true"
         },
         body: JSON.stringify({ userId: user._id || user.id, teamName }),
       });

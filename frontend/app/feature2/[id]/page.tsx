@@ -24,8 +24,12 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
     // Init user
     fetchUser(token);
     
-    // Init socket
-    socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080");
+    // Init socket with ngrok warning bypass headers
+    socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080", {
+      extraHeaders: {
+        "ngrok-skip-browser-warning": "true",
+      }
+    });
 
     socket.emit("join_challenge", challengeId);
 
@@ -64,7 +68,10 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const fetchUser = async (token: string) => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+            Authorization: `Bearer ${token}`,
+            'ngrok-skip-browser-warning': 'true'
+        },
       });
       if (res.ok) {
         setUser(await res.json());
@@ -77,7 +84,9 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
   const fetchChallenge = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/challenges/${challengeId}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/challenges/${challengeId}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) setChallenge(await res.json());
     } catch (e) {
       console.error(e);
@@ -135,6 +144,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('fit_token')}`,
+          'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify({ userId: user._id || user.id })
       });
