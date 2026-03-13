@@ -28,6 +28,9 @@ router.get('/me', async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select('-password');
+    if (!user) {
+      return res.status(401).json({ error: 'User no longer exists' });
+    }
     res.json(user);
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });

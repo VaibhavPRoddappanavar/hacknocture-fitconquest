@@ -22,6 +22,14 @@ const userSchema = new mongoose.Schema({
   stats: {
     totalSquats: { type: Number, default: 0 },
     challengesWon: { type: Number, default: 0 }
+  },
+  flexCoins: {
+    type: Number,
+    default: 0
+  },
+  activeShield: {
+    shieldType: { type: String, enum: ['none', 'bronze', 'silver', 'gold'], default: 'none' },
+    expiresAt: { type: Date, default: null }
   }
 }, { timestamps: true });
 
