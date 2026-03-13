@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const challengeRoutes = require('./routes/challenges');
 const leaderboardRoutes = require('./routes/leaderboard');
 const shopRoutes = require('./routes/shop');
+const healthRoutes = require('./routes/health');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/shop', shopRoutes);
+app.use('/api/health', healthRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB Connected'))
