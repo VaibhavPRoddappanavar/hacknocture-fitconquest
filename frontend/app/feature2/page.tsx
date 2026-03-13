@@ -121,6 +121,7 @@ export default function Feature2() {
           <p className="subtitle" style={{marginTop: '0.5rem'}}>Welcome back, {user.username}! Choose a challenge to start competing.</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
+          <Link href="/feature2/shop" style={{ padding: '0.75rem 1.5rem', background: 'rgba(6, 182, 212, 0.1)', borderRadius: '12px', color: 'var(--accent-2)', textDecoration: 'none', border: '1px solid rgba(6, 182, 212, 0.2)', fontWeight: 'bold' }}>🪙 Flex Shop</Link>
           <Link href="/feature2/leaderboard" style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.08)', borderRadius: '12px', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.1)' }}>🏆 Leaderboard</Link>
           <button onClick={() => { localStorage.removeItem("fit_token"); setUser(null); }} style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,100,100,0.1)', borderRadius: '12px', color: '#ff8888', border: '1px solid rgba(255,100,100,0.2)', cursor: 'pointer' }}>Logout</button>
         </div>

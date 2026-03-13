@@ -17,11 +17,11 @@ const seed = async () => {
     const passwordHash = await bcrypt.hash('password123', 10);
 
     const usersData = [
-      { username: 'vishal', password: passwordHash, location: { city: 'Kochi', state: 'Kerala', country: 'India' } },
-      { username: 'arjun', password: passwordHash, location: { city: 'Kochi', state: 'Kerala', country: 'India' } },
-      { username: 'priya', password: passwordHash, location: { city: 'Bangalore', state: 'Karnataka', country: 'India' } },
-      { username: 'rahul', password: passwordHash, location: { city: 'Bangalore', state: 'Karnataka', country: 'India' } },
-      { username: 'testuser', password: passwordHash, location: { city: 'Mumbai', state: 'Maharashtra', country: 'India' } },
+      { username: 'vishal', password: passwordHash, flexCoins: 500, location: { city: 'Kochi', state: 'Kerala', country: 'India' } },
+      { username: 'arjun', password: passwordHash, flexCoins: 500, location: { city: 'Kochi', state: 'Kerala', country: 'India' } },
+      { username: 'priya', password: passwordHash, flexCoins: 500, location: { city: 'Bangalore', state: 'Karnataka', country: 'India' } },
+      { username: 'rahul', password: passwordHash, flexCoins: 500, location: { city: 'Bangalore', state: 'Karnataka', country: 'India' } },
+      { username: 'testuser', password: passwordHash, flexCoins: 500, location: { city: 'Mumbai', state: 'Maharashtra', country: 'India' } },
     ];
 
     const users = await User.insertMany(usersData);

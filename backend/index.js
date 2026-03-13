@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const challengeRoutes = require('./routes/challenges');
 const leaderboardRoutes = require('./routes/leaderboard');
+const shopRoutes = require('./routes/shop');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,13 +19,18 @@ const io = new Server(server, {
   }
 });
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+}));
 app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/shop', shopRoutes);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -68,11 +74,13 @@ io.on('connection', (socket) => {
             winnerTeam: updatedChallenge.winnerTeam
           });
 
-          // Also increment user squat
+          // Also increment user squat and Aura
           const User = require('./models/User');
           const user = await User.findById(userId);
           if (user) {
             user.stats.totalSquats += count;
+            // 1 Flex Coin earned per rep/squat logic
+            user.flexCoins = (user.flexCoins || 0) + count;
             await user.save();
           }
 
