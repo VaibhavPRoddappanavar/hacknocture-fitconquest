@@ -37,6 +37,9 @@ registration_state = {
     "target_frames": 15,
     "last_capture_time": 0
 }
+safe_limit = None
+current_threshold = None
+is_paused = False
 
 camera = None
 camera_lock = threading.Lock()
@@ -128,7 +131,15 @@ def generate_frames():
             continue
 
         detector = detectors[active_exercise]
-        result = detector.process_frame(frame)
+        
+        # Only process counting if we are not paused, otherwise just show frame without increasing
+        if not is_paused:
+            result = detector.process_frame(frame)
+        else:
+            # Just push the frame through without running the pose counter to enforce constraint
+            # Actually, we still want skeleton, so we process it but override the count state.
+            # To keep it simple, we process the frame but freeze count updates in our return
+            result = detector.process_frame(frame)
         annotated_frame = result["annotated_frame"]
         
         if verifier is not None:
@@ -136,9 +147,18 @@ def generate_frames():
             color = (0, 255, 0) if trust_score > 70 else (0, 165, 255)
             cv2.putText(annotated_frame, f"Trust Score: {trust_score}", (20, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
             cv2.putText(annotated_frame, f"Status: {alert_msg}", (20, h - 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            # We don't want the detector to advance its internal counter though
+            # If detector uses 'squat_count', let's manually reset it down to the threshold
+            if current_threshold is not None:
+                if active_exercise == "squat" and hasattr(detector, 'squat_count'):
+                    detector.squat_count = current_threshold
+                elif active_exercise == "pushup" and hasattr(detector, 'pushup_count'):
+                    detector.pushup_count = current_threshold
 
-        # Build unified stats (use .get() to avoid KeyError across exercise types)
         count = result.get("squat_count", result.get("pushup_count", 0))
+        
+        if current_threshold and count >= current_threshold and not is_paused:
+            is_paused = True
         angles = {}
         if "knee_angle" in result:
             angles["knee_angle"] = result["knee_angle"]
@@ -154,6 +174,8 @@ def generate_frames():
             "angles": angles,
             "feedback": result.get("feedback", []),
             "trust_score": trust_score,
+            "is_paused": is_paused,
+            "threshold": current_threshold
         }
 
         _, buffer = cv2.imencode(".jpg", annotated_frame)
@@ -272,6 +294,30 @@ def register_face():
     if saved > 0:
         return jsonify({"message": f"Saved {saved} frames", "status": "success"})
     return jsonify({"error": "Failed to detect face"}), 400
+
+@app.route("/set_limit", methods=["POST"])
+def set_limit():
+    """Set a safety limit and reset thresholds"""
+    global safe_limit, current_threshold, is_paused
+    data = request.get_json(force=True)
+    limit = data.get("limit")
+    if limit and int(limit) > 0:
+        safe_limit = int(limit)
+        current_threshold = safe_limit
+    else:
+        safe_limit = None
+        current_threshold = None
+    is_paused = False
+    return jsonify({"message": f"Safe limit set to {safe_limit}"})
+
+@app.route("/continue", methods=["POST"])
+def continue_exercise():
+    """Bypass the current warning and increase threshold"""
+    global is_paused, safe_limit, current_threshold
+    is_paused = False
+    if safe_limit and current_threshold:
+        current_threshold += safe_limit # Set next warning milestone
+    return jsonify({"message": "Continuing, threshold increased"})
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

@@ -1,20 +1,21 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-require('dotenv').config();
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+require("dotenv").config();
 
-const User = require('./models/User');
-const Challenge = require('./models/Challenge');
+const User = require("./models/User");
+const Challenge = require("./models/Challenge");
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected for Seeding'))
-  .catch(err => console.error(err));
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB Connected for Seeding"))
+  .catch((err) => console.error(err));
 
 const seed = async () => {
   try {
     await User.deleteMany({});
     await Challenge.deleteMany({});
 
-    const passwordHash = await bcrypt.hash('password123', 10);
+    const passwordHash = await bcrypt.hash("password123", 10);
 
     const usersData = [
       { username: 'vishal', password: passwordHash, flexCoins: 500, location: { city: 'Kochi', state: 'Kerala', country: 'India' } },
@@ -27,7 +28,7 @@ const seed = async () => {
     const users = await User.insertMany(usersData);
 
     for (let u of users) {
-      u.friends = users.filter(x => x._id !== u._id).map(x => x._id);
+      u.friends = users.filter((x) => x._id !== u._id).map((x) => x._id);
       await u.save();
     }
 
@@ -171,7 +172,7 @@ const seed = async () => {
     console.log("\nSeeded! All challenges ACTIVE with fake teams.");
     console.log("Login as any user (password: password123)");
     process.exit();
-  } catch(e) {
+  } catch (e) {
     console.error(e);
     process.exit(1);
   }

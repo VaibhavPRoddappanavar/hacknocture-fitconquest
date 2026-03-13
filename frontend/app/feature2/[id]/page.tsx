@@ -25,11 +25,24 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [faceRegistered, setFaceRegistered] = useState(false);
 
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
-  const prevCountRef = useRef(0);
+  // Health check states
+  const [healthChecked, setHealthChecked] = useState(false);
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthForm, setHealthForm] = useState({ age: '', weight: '', conditions: '' });
+  const [healthAdvice, setHealthAdvice] = useState<string | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const exerciseToStartRef = useRef<"squat" | "pushup" | null>(null);
+
+  const [aiLimit, setAiLimit] = useState<number | null>(null);
+  const [warningLimit, setWarningLimit] = useState<number | null>(null);
+  const [nextMilestone, setNextMilestone] = useState<number | null>(null);
+  const nextMilestoneRef = useRef<number | null>(null);
+
   const challengeRef = useRef<any>(null);
   const userRef = useRef<any>(null);
   const activeExerciseRef = useRef<"squat" | "pushup">("squat");
+  const pollRef = useRef<any>(null);
+  const prevCountRef = useRef<number>(0);
 
   useEffect(() => { challengeRef.current = challenge; }, [challenge]);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -102,7 +115,54 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
     });
   };
 
+  const submitHealthCheck = async () => {
+    setHealthLoading(true);
+    setHealthAdvice(null);
+    try {
+      const challengeDetails = (challenge?.exerciseType === 'mixed' || !challenge?.exerciseType)
+        ? `${challenge.targetSquats} Squats and ${challenge.targetPushups} Pushups`
+        : challenge.exerciseType === 'squat'
+          ? `${challenge.targetSquats} Squats`
+          : `${challenge.targetPushups} Pushups`;
+          
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/health/check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ ...healthForm, challengeDetails })
+      });
+      const data = await res.json();
+      if (res.ok && data.advice) {
+        setHealthAdvice(data.advice);
+        if (data.max_safe_reps) {
+          setAiLimit(data.max_safe_reps);
+        }
+      } else {
+        setHealthAdvice("We couldn't reach the AI. Please proceed with caution if you feel safe.");
+      }
+    } catch (e) {
+      setHealthAdvice("We couldn't reach the AI. Please proceed with caution if you feel safe.");
+    }
+    setHealthLoading(false);
+  };
+
+  const proceedAfterHealthCheck = () => {
+    setShowHealthModal(false);
+    setHealthChecked(true);
+    if (exerciseToStartRef.current) {
+      startCamera(exerciseToStartRef.current);
+    }
+  };
+
   const startCamera = async (exercise: "squat" | "pushup") => {
+    if (!healthChecked) {
+      exerciseToStartRef.current = exercise;
+      setShowHealthModal(true);
+      return;
+    }
+
     try {
       setActiveExercise(exercise);
       activeExerciseRef.current = exercise;
@@ -119,8 +179,6 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
         body: JSON.stringify({ userId: userRef.current?._id || userRef.current?.id, challengeType: challengeRef.current?.exerciseType })
       });
 
-      await fetch(`${AI_ENGINE_URL}/exercise`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exercise }) });
-      await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
       setCameraActive(true);
       prevCountRef.current = 0;
 
@@ -142,7 +200,6 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
   const stopCamera = () => {
     setCameraActive(false);
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
   const registerFace = async () => {
@@ -159,7 +216,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
       } else {
         alert("Failed to register face. Make sure your face is clearly visible.");
       }
-    } catch(e) {
+    } catch (e) {
       alert("Error connecting to AI engine.");
     } finally {
       setIsRegistering(false);
@@ -219,6 +276,37 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="feature-page" style={{ padding: '8rem 5% 4rem' }}>
+      {showHealthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(5px)' }}>
+          <div style={{ background: 'var(--card-bg)', border: '1px solid rgba(99,102,241,0.4)', padding: '2.5rem', borderRadius: '24px', maxWidth: '500px', width: '100%', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => setShowHealthModal(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#aaa', fontSize: '1.2rem', cursor: 'pointer' }}>✖</button>
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '1rem', color: '#fff', fontWeight: 'bold' }}>⚕️ Health & Safety Check</h2>
+            <p style={{ color: '#aaa', marginBottom: '2rem', fontSize: '0.95rem', lineHeight: '1.6' }}>Before you start sweating, let our Groq-powered AI evaluate if this physical challenge is safe for you based on any health conditions, prior injuries, or age-related parameters.</p>
+            
+            {!healthAdvice ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <input type="number" placeholder="Age" value={healthForm.age} onChange={e => setHealthForm({...healthForm, age: e.target.value})} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: '1rem' }} />
+                <input type="number" placeholder="Weight (kg)" value={healthForm.weight} onChange={e => setHealthForm({...healthForm, weight: e.target.value})} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: '1rem' }} />
+                <textarea placeholder="Any medical conditions or prior injuries? (e.g., Asthma, Bad knees, Heart conditions)" value={healthForm.conditions} onChange={e => setHealthForm({...healthForm, conditions: e.target.value})} rows={3} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: '1rem', resize: 'vertical' }}></textarea>
+                <button onClick={submitHealthCheck} disabled={healthLoading} style={{ padding: '1.2rem', borderRadius: '12px', background: 'linear-gradient(45deg, var(--accent-1), #818cf8)', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', opacity: healthLoading ? 0.7 : 1, marginTop: '1rem' }}>
+                  {healthLoading ? 'Analyzing using Groq...' : 'Get AI Advice'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ padding: '1.5rem', borderRadius: '16px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.3)', color: '#fff', lineHeight: '1.6' }}>
+                  <strong style={{ color: 'var(--accent-2)', fontSize: '1.1rem', display: 'block', marginBottom: '0.8rem' }}>🤖 AI Health Advisor says:</strong>
+                  <span style={{ fontSize: '1rem', opacity: 0.9 }}>{healthAdvice}</span>
+                </div>
+                <button onClick={proceedAfterHealthCheck} style={{ padding: '1.2rem', borderRadius: '12px', background: 'rgba(74,222,128,0.15)', border: '1px solid #4ade80', color: '#4ade80', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer' }}>
+                  Acknowledge and Start Challenge
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <Link href="/feature2" className="back-link" style={{ marginBottom: '2rem' }}>← Back to Challenges</Link>
 
       {/* Header */}
@@ -323,7 +411,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                         </div>
                       </div>
                     )}
-                    
+
                     {!isRegistering && (
                       <button onClick={registerFace} style={{
                         padding: '1rem 2rem', borderRadius: '30px', background: 'linear-gradient(135deg, #10b981, #059669)',
@@ -336,28 +424,28 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                     <p style={{ fontSize: '0.8rem', color: '#aaa', maxWidth: '350px', textAlign: 'center' }}>Anti-spoofing is enabled. During the 5-second capture, slowly turn your head left and right to allow the AI to learn your face from different angles.</p>
                   </div>
                 ) : (
-                <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  {(exerciseType === 'squat' || exerciseType === 'mixed') && (
-                    <button onClick={() => startCamera('squat')} style={{
-                      width: '130px', height: '130px', borderRadius: '65px',
-                      background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff',
-                      fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
-                      boxShadow: '0 0 30px rgba(99,102,241,0.3)', transition: 'transform 0.15s', lineHeight: '1.4',
-                    }} onMouseDown={(e: any) => e.target.style.transform = 'scale(0.93)'} onMouseUp={(e: any) => e.target.style.transform = 'scale(1)'}>
-                      🦵<br />START<br />SQUATS
-                    </button>
-                  )}
-                  {(exerciseType === 'pushup' || exerciseType === 'mixed') && (
-                    <button onClick={() => startCamera('pushup')} style={{
-                      width: '130px', height: '130px', borderRadius: '65px',
-                      background: 'linear-gradient(135deg, #06b6d4, #22d3ee)', color: '#fff',
-                      fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
-                      boxShadow: '0 0 30px rgba(6,182,212,0.3)', transition: 'transform 0.15s', lineHeight: '1.4',
-                    }} onMouseDown={(e: any) => e.target.style.transform = 'scale(0.93)'} onMouseUp={(e: any) => e.target.style.transform = 'scale(1)'}>
-                      💪<br />START<br />PUSHUPS
-                    </button>
-                  )}
-                </div>
+                  <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {(exerciseType === 'squat' || exerciseType === 'mixed') && (
+                      <button onClick={() => startCamera('squat')} style={{
+                        width: '130px', height: '130px', borderRadius: '65px',
+                        background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff',
+                        fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 0 30px rgba(99,102,241,0.3)', transition: 'transform 0.15s', lineHeight: '1.4',
+                      }} onMouseDown={(e: any) => e.target.style.transform = 'scale(0.93)'} onMouseUp={(e: any) => e.target.style.transform = 'scale(1)'}>
+                        🦵<br />START<br />SQUATS
+                      </button>
+                    )}
+                    {(exerciseType === 'pushup' || exerciseType === 'mixed') && (
+                      <button onClick={() => startCamera('pushup')} style={{
+                        width: '130px', height: '130px', borderRadius: '65px',
+                        background: 'linear-gradient(135deg, #06b6d4, #22d3ee)', color: '#fff',
+                        fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 0 30px rgba(6,182,212,0.3)', transition: 'transform 0.15s', lineHeight: '1.4',
+                      }} onMouseDown={(e: any) => e.target.style.transform = 'scale(0.93)'} onMouseUp={(e: any) => e.target.style.transform = 'scale(1)'}>
+                        💪<br />START<br />PUSHUPS
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
