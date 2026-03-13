@@ -1,0 +1,731 @@
+/* ═══════════════════════════════════════════════════════════════
+   Feature 1 — Daily Activity Map + Leaderboard
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Split Layout ─────────────────────────────────────────── */
+.feature1-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    padding-top: 60px;
+    /* navbar height */
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+
+.feature1-map {
+    flex: 7;
+    position: relative;
+    min-width: 0;
+}
+
+.feature1-map .leaflet-container {
+    width: 100%;
+    height: 100%;
+    background: #0d0d14;
+    z-index: 1;
+}
+
+/* Map overlay label */
+.feature1-map-overlay {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    background: rgba(10, 10, 15, 0.85);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    animation: fadeInDown 0.5s ease-out;
+}
+
+.feature1-map-overlay .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.feature1-map-overlay span {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* ─── Sidebar / Leaderboard Panel ──────────────────────────── */
+.feature1-sidebar {
+    flex: 3;
+    min-width: 320px;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(10, 10, 15, 0.92);
+    backdrop-filter: blur(24px) saturate(180%);
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+
+.lb-header {
+    padding: 24px 24px 0;
+    flex-shrink: 0;
+}
+
+.lb-header h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.lb-header p {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 20px;
+}
+
+/* ─── Tabs ─────────────────────────────────────────────────── */
+.lb-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 0 24px 20px;
+    flex-shrink: 0;
+}
+
+.lb-tab {
+    flex: 1;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.45);
+    position: relative;
+    overflow: hidden;
+}
+
+.lb-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.lb-tab--active {
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.lb-tab--active:hover {
+    background: rgba(99, 102, 241, 0.2);
+    color: #c7d2fe;
+}
+
+/* ─── Leaderboard List ─────────────────────────────────────── */
+.lb-list-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 24px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.lb-list-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+.lb-list-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.lb-list-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.lb-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 16px;
+}
+
+/* ─── Leaderboard Row ──────────────────────────────────────── */
+.lb-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    animation: fadeInUp 0.4s ease-out both;
+}
+
+.lb-row:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.lb-row:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.lb-row:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.lb-row:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.lb-row:nth-child(5) {
+    animation-delay: 0.25s;
+}
+
+.lb-row:nth-child(6) {
+    animation-delay: 0.3s;
+}
+
+.lb-row:nth-child(7) {
+    animation-delay: 0.35s;
+}
+
+.lb-row:nth-child(8) {
+    animation-delay: 0.4s;
+}
+
+.lb-row:nth-child(9) {
+    animation-delay: 0.45s;
+}
+
+.lb-row:nth-child(10) {
+    animation-delay: 0.5s;
+}
+
+.lb-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateX(4px);
+}
+
+/* Podium highlights */
+.lb-row--gold {
+    background: rgba(255, 215, 0, 0.04);
+    border-color: rgba(255, 215, 0, 0.1);
+}
+
+.lb-row--gold:hover {
+    background: rgba(255, 215, 0, 0.08);
+    border-color: rgba(255, 215, 0, 0.18);
+}
+
+.lb-row--silver {
+    background: rgba(192, 192, 192, 0.04);
+    border-color: rgba(192, 192, 192, 0.08);
+}
+
+.lb-row--bronze {
+    background: rgba(205, 127, 50, 0.04);
+    border-color: rgba(205, 127, 50, 0.08);
+}
+
+/* Rank badge */
+.lb-rank {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.lb-rank--1 {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
+    color: #ffd700;
+    font-size: 1.1rem;
+}
+
+.lb-rank--2 {
+    background: linear-gradient(135deg, rgba(192, 192, 192, 0.2), rgba(192, 192, 192, 0.05));
+    color: #c0c0c0;
+    font-size: 1.1rem;
+}
+
+.lb-rank--3 {
+    background: linear-gradient(135deg, rgba(205, 127, 50, 0.2), rgba(205, 127, 50, 0.05));
+    color: #cd7f32;
+    font-size: 1.1rem;
+}
+
+/* User info */
+.lb-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.lb-username {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lb-location {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 2px;
+}
+
+/* Squat count */
+.lb-squats {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.lb-squats-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--accent-1);
+    font-variant-numeric: tabular-nums;
+}
+
+.lb-squats-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Progress bar */
+.lb-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    border-radius: 0 2px 0 0;
+    transition: width 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+    opacity: 0.5;
+}
+
+.lb-row {
+    position: relative;
+    overflow: hidden;
+}
+
+/* ─── Stats Footer ─────────────────────────────────────────── */
+.lb-footer {
+    flex-shrink: 0;
+    padding: 16px 24px 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(10, 10, 15, 0.6);
+}
+
+.lb-footer-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.lb-stat {
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.lb-stat-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.35);
+    margin-bottom: 6px;
+}
+
+.lb-stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    font-variant-numeric: tabular-nums;
+}
+
+.lb-stat-value--accent {
+    color: var(--accent-1);
+}
+
+/* ─── Loading & Empty States ───────────────────────────────── */
+.lb-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 12px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+}
+
+.lb-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(255, 255, 255, 0.08);
+    border-top-color: var(--accent-1);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.lb-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 2rem;
+}
+
+.lb-empty-icon {
+    font-size: 2rem;
+    opacity: 0.5;
+}
+
+/* ─── Map Loading ──────────────────────────────────────────── */
+.map-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: #0d0d14;
+    gap: 16px;
+}
+
+.map-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(99, 102, 241, 0.15);
+    border-top-color: var(--accent-1);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.map-loading span {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.03em;
+}
+
+/* ─── Animations ───────────────────────────────────────────── */
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(1.3);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ─── Custom Leaflet Overrides ─────────────────────────────── */
+.feature1-map .leaflet-control-zoom {
+    border: none !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+.feature1-map .leaflet-control-zoom a {
+    background: rgba(10, 10, 15, 0.9) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(12px);
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    font-size: 16px !important;
+    transition: all 0.2s ease;
+}
+
+.feature1-map .leaflet-control-zoom a:hover {
+    background: rgba(20, 20, 30, 0.95) !important;
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.feature1-map .leaflet-control-zoom-in {
+    border-radius: 10px 10px 0 0 !important;
+}
+
+.feature1-map .leaflet-control-zoom-out {
+    border-radius: 0 0 10px 10px !important;
+}
+
+.feature1-map .leaflet-control-attribution {
+    background: rgba(10, 10, 15, 0.7) !important;
+    color: rgba(255, 255, 255, 0.3) !important;
+    font-size: 10px !important;
+    backdrop-filter: blur(8px);
+    border-radius: 6px 0 0 0;
+}
+
+.feature1-map .leaflet-control-attribution a {
+    color: rgba(99, 102, 241, 0.6) !important;
+}
+
+/* Marker popup styling */
+.feature1-map .leaflet-popup-content-wrapper {
+    background: rgba(14, 14, 22, 0.95) !important;
+    color: #e8e8ed !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(16px);
+}
+
+.feature1-map .leaflet-popup-tip {
+    background: rgba(14, 14, 22, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+}
+
+.feature1-map .leaflet-popup-close-button {
+    color: rgba(255, 255, 255, 0.4) !important;
+    font-size: 20px !important;
+    top: 8px !important;
+    right: 10px !important;
+}
+
+.feature1-map .leaflet-popup-close-button:hover {
+    color: #fff !important;
+}
+
+/* ─── Custom marker popup content ──────────────────────────── */
+.marker-popup-content {
+    padding: 4px 0;
+}
+
+.marker-popup-content h4 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #fff;
+}
+
+.marker-popup-content .popup-stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.marker-popup-content .popup-stat {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.marker-popup-content .popup-stat strong {
+    color: var(--accent-1);
+    font-weight: 700;
+}
+
+.marker-popup-content .popup-location {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.35);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ─── Theme Toggle Button ──────────────────────────────────── */
+.map-theme-toggle {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 15, 0.85);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    animation: fadeInDown 0.5s ease-out 0.1s both;
+}
+
+.map-theme-toggle:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.map-theme-toggle:active {
+    transform: scale(0.95);
+}
+
+/* ─── Light Mode: Toggle Button ────────────────────────────── */
+.feature1-map--light .map-theme-toggle {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.feature1-map--light .map-theme-toggle:hover {
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.15);
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* ─── Light Mode: Map Overlay Badge ────────────────────────── */
+.feature1-map--light .feature1-map-overlay {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.feature1-map--light .feature1-map-overlay span {
+    color: rgba(0, 0, 0, 0.65);
+}
+
+/* ─── Light Mode: Leaflet Controls ─────────────────────────── */
+.feature1-map--light .leaflet-control-zoom {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.feature1-map--light .leaflet-control-zoom a {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: rgba(0, 0, 0, 0.65) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.feature1-map--light .leaflet-control-zoom a:hover {
+    background: #fff !important;
+    color: #000 !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+.feature1-map--light .leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: rgba(0, 0, 0, 0.45) !important;
+}
+
+.feature1-map--light .leaflet-control-attribution a {
+    color: var(--accent-1) !important;
+}
+
+/* ─── Light Mode: Popups ───────────────────────────────────── */
+.feature1-map--light .leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.97) !important;
+    color: #1a1a2e !important;
+    border-color: rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.feature1-map--light .leaflet-popup-tip {
+    background: rgba(255, 255, 255, 0.97) !important;
+    border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+.feature1-map--light .leaflet-popup-close-button {
+    color: rgba(0, 0, 0, 0.35) !important;
+}
+
+.feature1-map--light .leaflet-popup-close-button:hover {
+    color: #000 !important;
+}
+
+.feature1-map--light .marker-popup-content h4 {
+    color: #1a1a2e;
+}
+
+.feature1-map--light .marker-popup-content .popup-stat {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.feature1-map--light .marker-popup-content .popup-stat strong {
+    color: #4f46e5;
+}
+
+.feature1-map--light .marker-popup-content .popup-location {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Light Mode: Map Background ───────────────────────────── */
+.feature1-map--light .leaflet-container {
+    background: #e8e8e8 !important;
+}
+
+/* ─── Responsive ───────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .feature1-container {
+        flex-direction: column;
+    }
+
+    .feature1-map {
+        flex: none;
+        height: 55vh;
+    }
+
+    .feature1-sidebar {
+        flex: 1;
+        min-width: unset;
+        max-width: unset;
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+}

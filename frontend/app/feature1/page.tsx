@@ -1,45 +1,28 @@
-import Link from "next/link";
+"use client";
+
+import dynamic from "next/dynamic";
+import LeaderboardPanel from "./components/LeaderboardPanel";
+import "./feature1.css";
+
+// Leaflet requires `window` — dynamic import with SSR disabled
+const MapView = dynamic(() => import("./components/MapView"), {
+  ssr: false,
+  loading: () => (
+    <div className="map-loading">
+      <div className="map-loading-spinner" />
+      <span>Loading map…</span>
+    </div>
+  ),
+});
 
 export default function Feature1() {
   return (
-    <div className="feature-page feature-1-page" id="feature-1-page">
-      <Link href="/" className="back-link">
-        ← Back to Home
-      </Link>
+    <div className="feature1-container" id="feature-1-page">
+      {/* Left — Interactive Map (70%) */}
+      <MapView />
 
-      <div className="page-icon">⚡</div>
-
-      <h1>Feature 1</h1>
-      <p className="subtitle">
-        Supercharge your training with intelligent workout tracking, adaptive
-        plans, and real-time analytics that evolve with you.
-      </p>
-
-      <div className="content-card">
-        <h3>What&apos;s Included</h3>
-        <ul>
-          <li>
-            <span className="check">✓</span>
-            Real-time workout logging &amp; analytics
-          </li>
-          <li>
-            <span className="check">✓</span>
-            AI-powered adaptive training plans
-          </li>
-          <li>
-            <span className="check">✓</span>
-            Progress graphs and milestone tracking
-          </li>
-          <li>
-            <span className="check">✓</span>
-            Smart recovery recommendations
-          </li>
-          <li>
-            <span className="check">✓</span>
-            Integration with wearable devices
-          </li>
-        </ul>
-      </div>
+      {/* Right — Leaderboard Panel (30%) */}
+      <LeaderboardPanel />
     </div>
   );
 }
