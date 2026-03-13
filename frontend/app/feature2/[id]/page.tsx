@@ -35,6 +35,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const [aiLimit, setAiLimit] = useState<number | null>(null);
   const [warningLimit, setWarningLimit] = useState<number | null>(null);
   const [nextMilestone, setNextMilestone] = useState<number | null>(null);
+  const nextMilestoneRef = useRef<number | null>(null);
 
   const challengeRef = useRef<any>(null);
   const userRef = useRef<any>(null);
@@ -170,6 +171,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
       setCameraActive(true);
       setWarningLimit(null);
+      nextMilestoneRef.current = aiLimit;
       setNextMilestone(aiLimit);
       setAiStats(null);
     } catch (e) {
@@ -179,15 +181,19 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
   const handleStatsUpdate = (stats: any) => {
     setAiStats(stats);
-    if (nextMilestone !== null && stats.count >= nextMilestone) {
-        setWarningLimit(nextMilestone);
+    if (nextMilestoneRef.current !== null && stats.count >= nextMilestoneRef.current) {
+        if (warningLimit === null) {
+            setWarningLimit(nextMilestoneRef.current);
+        }
     }
   };
 
   const continueTracking = async () => {
-    setWarningLimit(null);
-    if (aiLimit !== null && nextMilestone !== null) {
-      setNextMilestone(nextMilestone + aiLimit);
+    if (aiLimit !== null && nextMilestoneRef.current !== null) {
+      const next = nextMilestoneRef.current + aiLimit;
+      nextMilestoneRef.current = next;
+      setNextMilestone(next);
+      setWarningLimit(null);
     }
   };
 
