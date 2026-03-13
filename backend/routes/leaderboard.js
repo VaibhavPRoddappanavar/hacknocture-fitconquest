@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
       .limit(50);
 
     res.json(leaderboard);
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -46,12 +46,12 @@ router.get('/challenge/:id', async (req, res) => {
       else totalReps = team.totalSquats + team.totalPushups;
 
       const targetTotal = (type === 'squat' ? challenge.targetSquats : 0) +
-                          (type === 'pushup' ? challenge.targetPushups : 0) +
-                          (type === 'mixed' ? challenge.targetSquats + challenge.targetPushups : 0);
+        (type === 'pushup' ? challenge.targetPushups : 0) +
+        (type === 'mixed' ? challenge.targetSquats + challenge.targetPushups : 0);
 
       const completed = (type === 'squat' && team.totalSquats >= challenge.targetSquats) ||
-                        (type === 'pushup' && team.totalPushups >= challenge.targetPushups) ||
-                        (type === 'mixed' && team.totalSquats >= challenge.targetSquats && team.totalPushups >= challenge.targetPushups);
+        (type === 'pushup' && team.totalPushups >= challenge.targetPushups) ||
+        (type === 'mixed' && team.totalSquats >= challenge.targetSquats && team.totalPushups >= challenge.targetPushups);
 
       return {
         teamName: team.teamName,
@@ -87,7 +87,7 @@ router.get('/challenge/:id', async (req, res) => {
       startedAt: challenge.startedAt,
       teams: teamsRanked,
     });
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -115,8 +115,8 @@ router.get('/challenges', async (req, res) => {
           totalPushups: t.totalPushups,
           memberCount: t.members.length,
           completed: type === 'squat' ? t.totalSquats >= c.targetSquats :
-                     type === 'pushup' ? t.totalPushups >= c.targetPushups :
-                     t.totalSquats >= c.targetSquats && t.totalPushups >= c.targetPushups,
+            type === 'pushup' ? t.totalPushups >= c.targetPushups :
+              t.totalSquats >= c.targetSquats && t.totalPushups >= c.targetPushups,
           timeTakenMs: t.timeTakenMs,
           timeTakenFormatted: t.timeTakenMs ? formatTime(t.timeTakenMs) : null,
         }))
@@ -124,7 +124,7 @@ router.get('/challenges', async (req, res) => {
     });
 
     res.json(summaries);
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

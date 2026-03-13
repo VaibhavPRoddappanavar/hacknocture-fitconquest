@@ -114,14 +114,14 @@ export default function Feature2() {
   if (!user) {
     return (
       <div className="feature-page feature-2-page" id="feature-2-page" style={{ minHeight: '80vh', padding: '10rem 2rem' }}>
-        <div className="content-card" style={{margin: '0 auto', textAlign: 'center'}}>
-           <h2>Login to Squad Challenges</h2>
-           <form onSubmit={login} style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem'}}>
-             <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" style={{padding: '0.8rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white'}} />
-             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={{padding: '0.8rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white'}} />
-             <button type="submit" style={{padding: '0.8rem', borderRadius: '8px', background: 'var(--accent-1)', color: 'white', fontWeight: 'bold', cursor: 'pointer'}}>Login</button>
-           </form>
-           <p style={{marginTop: '1rem', color: '#888', fontSize: '0.9rem'}}>Demo users: vishal, arjun, priya, rahul<br/>Password: password123</p>
+        <div className="content-card" style={{ margin: '0 auto', textAlign: 'center' }}>
+          <h2>Login to Squad Challenges</h2>
+          <form onSubmit={login} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+            <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" style={{ padding: '0.8rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" style={{ padding: '0.8rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+            <button type="submit" style={{ padding: '0.8rem', borderRadius: '8px', background: 'var(--accent-1)', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Login</button>
+          </form>
+          <p style={{ marginTop: '1rem', color: '#888', fontSize: '0.9rem' }}>Demo users: vishal, arjun, priya, rahul<br />Password: password123</p>
         </div>
       </div>
     );
@@ -132,7 +132,7 @@ export default function Feature2() {
       <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
         <div>
           <h1>Squad Challenges</h1>
-          <p className="subtitle" style={{marginTop: '0.5rem'}}>Welcome back, {user.username}! Choose a challenge to start competing.</p>
+          <p className="subtitle" style={{ marginTop: '0.5rem' }}>Welcome back, {user.username}! Choose a challenge to start competing.</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
           <Link href="/feature2/leaderboard" style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.08)', borderRadius: '12px', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.1)' }}>🏆 Leaderboard</Link>
@@ -143,8 +143,8 @@ export default function Feature2() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '2rem', width: '100%' }}>
         {challenges.map(c => {
           const userId = user._id || user.id;
-          const isInRed = c.teams[0].members.find((m:any) => m._id === userId || m === userId);
-          const isInBlue = c.teams[1].members.find((m:any) => m._id === userId || m === userId);
+          const isInRed = c.teams[0].members.find((m: any) => m._id === userId || m === userId);
+          const isInBlue = c.teams[1].members.find((m: any) => m._id === userId || m === userId);
           const isParticipant = isInRed || isInBlue;
           const badgeStyle = getExerciseBadgeColor(c.exerciseType || 'squat');
 
@@ -175,13 +175,13 @@ export default function Feature2() {
               <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
                 <div style={{ flex: 1, background: 'rgba(255,100,100,0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,100,100,0.1)' }}>
                   <h4 style={{ color: '#ff8888', marginBottom: '0.5rem' }}>Team Red</h4>
-                  <p style={{fontSize: '0.9rem', color: '#aaa'}}>{c.teams[0].members.length} Members</p>
-                  {!isParticipant && c.status === 'upcoming' && <button onClick={() => joinTeam(c._id, 'Red')} style={{marginTop: '0.5rem', background: '#ff8888', color: '#000', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'}}>Join Red</button>}
+                  <p style={{ fontSize: '0.9rem', color: '#aaa' }}>{c.teams[0].members.length} Members</p>
+                  {!isParticipant && c.status === 'upcoming' && <button onClick={() => joinTeam(c._id, 'Red')} style={{ marginTop: '0.5rem', background: '#ff8888', color: '#000', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Join Red</button>}
                 </div>
                 <div style={{ flex: 1, background: 'rgba(100,200,255,0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(100,200,255,0.1)' }}>
                   <h4 style={{ color: '#88ccff', marginBottom: '0.5rem' }}>Team Blue</h4>
-                  <p style={{fontSize: '0.9rem', color: '#aaa'}}>{c.teams[1].members.length} Members</p>
-                  {!isParticipant && c.status === 'upcoming' && <button onClick={() => joinTeam(c._id, 'Blue')} style={{marginTop: '0.5rem', background: '#88ccff', color: '#000', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'}}>Join Blue</button>}
+                  <p style={{ fontSize: '0.9rem', color: '#aaa' }}>{c.teams[1].members.length} Members</p>
+                  {!isParticipant && c.status === 'upcoming' && <button onClick={() => joinTeam(c._id, 'Blue')} style={{ marginTop: '0.5rem', background: '#88ccff', color: '#000', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Join Blue</button>}
                 </div>
               </div>
 

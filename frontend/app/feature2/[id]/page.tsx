@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef, use } from "react";
 import io from "socket.io-client";
 import Link from "next/link";
-import SquatTracker from "./SquatTracker";
 
 let socket: any;
 const AI_ENGINE_URL = "http://localhost:5050";
@@ -101,54 +100,38 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
     });
   };
 
-  // ── Start camera / AI engine ─────────────────────────────────────────────
-  const startCamera = async () => {
-    setCameraActive(true);
-    prevCountRef.current = 0;
-    setRepCount(0);
+  const startCamera = async (exercise: "squat" | "pushup") => {
+    try {
+      setActiveExercise(exercise);
+      activeExerciseRef.current = exercise;
 
-    if (exerciseType === 'pushup') {
-      try {
-        await fetch(`${AI_ENGINE_URL}/exercise`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ exercise: "pushup" }),
-        });
-        await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
-        
-        pollRef.current = setInterval(async () => {
-          try {
-            const res = await fetch(`${AI_ENGINE_URL}/stats`);
-            if (res.ok) {
-              const data = await res.json();
-              setAiStats(data);
-              setRepCount(data.count);
-
-              const newReps = data.count - prevCountRef.current;
-              if (newReps > 0) {
-                emitRep(newReps);
-                prevCountRef.current = data.count;
-              }
-            }
-          } catch (e) { }
-        }, 500);
-      } catch (e) {
-        console.error("Failed to connect to AI Engine:", e);
-        alert("Could not connect to AI Engine.");
+      // Record team workout start
+      const myTeam = getMyTeam();
+      if (myTeam && !myTeam.startedWorkoutAt) {
+        socket.emit("team_start_workout", { challengeId, teamId: myTeam._id });
       }
+
+      await fetch(`${AI_ENGINE_URL}/exercise`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exercise }) });
+      await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
+      setCameraActive(true);
+      prevCountRef.current = 0;
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await fetch(`${AI_ENGINE_URL}/stats`);
+          if (res.ok) {
+            const data = await res.json();
+            setAiStats(data);
+            const newReps = data.count - prevCountRef.current;
+            if (newReps > 0) { emitRep(newReps); prevCountRef.current = data.count; }
+          }
+        } catch (e) { }
+      }, 500);
+    } catch (e) {
+      alert("Could not connect to AI Engine. Run: python app.py");
     }
   };
 
-  const handleSquatRep = (count: number) => {
-    emitRep(count);
-  };
-
-  const handleSquatStats = (stats: any) => {
-    setAiStats(stats);
-    setRepCount(stats.count);
-  };
-
-  // ── Stop camera ──────────────────────────────────────────────────────────
   const stopCamera = () => {
     setCameraActive(false);
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -159,7 +142,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
     setTimeout(() => startCamera(exercise), 300);
   };
 
-  if (!challenge || !user) return <div style={{padding: '10rem', textAlign: 'center', color: '#aaa'}}>Loading Arena...</div>;
+  if (!challenge || !user) return <div style={{ padding: '10rem', textAlign: 'center', color: '#aaa' }}>Loading Arena...</div>;
 
   const exerciseType = challenge.exerciseType || 'squat';
 
@@ -167,8 +150,8 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const rankedTeams = [...challenge.teams].map((t: any) => {
     const completed =
       exerciseType === 'squat' ? t.totalSquats >= challenge.targetSquats :
-      exerciseType === 'pushup' ? t.totalPushups >= challenge.targetPushups :
-      t.totalSquats >= challenge.targetSquats && t.totalPushups >= challenge.targetPushups;
+        exerciseType === 'pushup' ? t.totalPushups >= challenge.targetPushups :
+          t.totalSquats >= challenge.targetSquats && t.totalPushups >= challenge.targetPushups;
     const totalReps = (exerciseType === 'mixed') ? t.totalSquats + t.totalPushups :
       exerciseType === 'squat' ? t.totalSquats : t.totalPushups;
     return { ...t, completed, totalReps };
@@ -185,8 +168,8 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   );
   const myTeamCompleted = myTeam && (
     exerciseType === 'squat' ? myTeam.totalSquats >= challenge.targetSquats :
-    exerciseType === 'pushup' ? myTeam.totalPushups >= challenge.targetPushups :
-    myTeam.totalSquats >= challenge.targetSquats && myTeam.totalPushups >= challenge.targetPushups
+      exerciseType === 'pushup' ? myTeam.totalPushups >= challenge.targetPushups :
+        myTeam.totalSquats >= challenge.targetSquats && myTeam.totalPushups >= challenge.targetPushups
   );
 
   const teamColors: any = {
@@ -207,7 +190,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="feature-page" style={{ padding: '8rem 5% 4rem' }}>
-      <Link href="/feature2" className="back-link" style={{marginBottom: '2rem'}}>← Back to Challenges</Link>
+      <Link href="/feature2" className="back-link" style={{ marginBottom: '2rem' }}>← Back to Challenges</Link>
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
@@ -303,7 +286,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                       fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
                       boxShadow: '0 0 30px rgba(99,102,241,0.3)', transition: 'transform 0.15s', lineHeight: '1.4',
                     }} onMouseDown={(e: any) => e.target.style.transform = 'scale(0.93)'} onMouseUp={(e: any) => e.target.style.transform = 'scale(1)'}>
-                      🦵<br/>START<br/>SQUATS
+                      🦵<br />START<br />SQUATS
                     </button>
                   )}
                   {(exerciseType === 'pushup' || exerciseType === 'mixed') && (
@@ -313,7 +296,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                       fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
                       boxShadow: '0 0 30px rgba(6,182,212,0.3)', transition: 'transform 0.15s', lineHeight: '1.4',
                     }} onMouseDown={(e: any) => e.target.style.transform = 'scale(0.93)'} onMouseUp={(e: any) => e.target.style.transform = 'scale(1)'}>
-                      💪<br/>START<br/>PUSHUPS
+                      💪<br />START<br />PUSHUPS
                     </button>
                   )}
                 </div>
@@ -376,55 +359,12 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
                 {/* Team name + progress bar */}
                 <div>
-                  {/* Live Video Feed / AI Tracker */}
-                  <div style={{
-                    position: 'relative',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    border: '2px solid rgba(99,102,241,0.3)',
-                    marginBottom: '1.5rem',
-                    background: '#000',
-                  }}>
-                    {exerciseType === 'squat' ? (
-                      <SquatTracker 
-                        onRep={handleSquatRep} 
-                        onStatsUpdate={handleSquatStats} 
-                      />
-                    ) : (
-                      <>
-                        <img
-                          src={`${AI_ENGINE_URL}/video_feed`}
-                          alt="AI Exercise Detection"
-                          style={{
-                            width: '100%',
-                            maxHeight: '480px',
-                            objectFit: 'contain',
-                            display: 'block',
-                          }}
-                        />
-                        <div style={{
-                          position: 'absolute',
-                          top: '12px',
-                          right: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 12px',
-                          borderRadius: '20px',
-                          background: 'rgba(255,50,50,0.85)',
-                          color: '#fff',
-                          fontSize: '0.75rem',
-                          fontWeight: 'bold',
-                        }}>
-                          <span style={{
-                            width: '8px', height: '8px', borderRadius: '50%',
-                            background: '#fff',
-                            animation: 'pulse 1.5s infinite',
-                          }}></span>
-                          LIVE
-                        </div>
-                      </>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, display: 'inline-block' }}></span>
+                    <span style={{ fontWeight: 'bold', color }}>
+                      Team {team.teamName}
+                      {isMyTeam && <span style={{ fontSize: '0.7rem', color: '#aaa', marginLeft: '0.5rem' }}>(You)</span>}
+                    </span>
                   </div>
                   {/* Progress bars */}
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

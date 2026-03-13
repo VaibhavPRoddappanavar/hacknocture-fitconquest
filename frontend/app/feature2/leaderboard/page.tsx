@@ -63,12 +63,12 @@ export default function Leaderboard() {
 
   return (
     <div className="feature-page" style={{ padding: '8rem 5% 4rem', alignItems: 'flex-start' }}>
-      <Link href="/feature2" className="back-link" style={{marginBottom: '2rem'}}>← Back to Squads</Link>
+      <Link href="/feature2" className="back-link" style={{ marginBottom: '2rem' }}>← Back to Squads</Link>
 
       <div style={{ width: '100%', textAlign: 'center', marginBottom: '3rem' }}>
-        <div className="page-icon" style={{margin: '0 auto 1.5rem'}}>🏆</div>
+        <div className="page-icon" style={{ margin: '0 auto 1.5rem' }}>🏆</div>
         <h1>Leaderboards</h1>
-        <p className="subtitle" style={{margin: '0 auto'}}>Team rankings across all challenges</p>
+        <p className="subtitle" style={{ margin: '0 auto' }}>Team rankings across all challenges</p>
       </div>
 
       {/* View Toggle */}
@@ -294,7 +294,7 @@ export default function Leaderboard() {
       {view === 'global' && (
         <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '20px', overflow: 'hidden' }}>
           {users.length === 0 ? (
-            <p style={{padding: '3rem', textAlign: 'center', color: '#888'}}>No top performers found yet.</p>
+            <p style={{ padding: '3rem', textAlign: 'center', color: '#888' }}>No top performers found yet.</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
