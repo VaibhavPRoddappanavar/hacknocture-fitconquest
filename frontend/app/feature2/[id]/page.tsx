@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, use } from "react";
 import io from "socket.io-client";
 import Link from "next/link";
 import SquatTracker from "./SquatTracker";
+import PushupTracker from "./PushupTracker";
 
 let socket: any;
 
@@ -159,44 +160,9 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
     setCameraActive(true);
     prevCountRef.current = 0;
     setRepCount(0);
-
-    if (exerciseType === 'pushup') {
-      try {
-        await fetch(`${AI_ENGINE_URL}/exercise`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ exercise: "pushup" }),
-        });
-        await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
-        
-        pollRef.current = setInterval(async () => {
-          try {
-            const res = await fetch(`${AI_ENGINE_URL}/stats`);
-            if (res.ok) {
-              const data = await res.json();
-              setAiStats(data);
-              setRepCount(data.count);
-
-              const newReps = data.count - prevCountRef.current;
-              if (newReps > 0) {
-                emitRep(newReps);
-                prevCountRef.current = data.count;
-              }
-            }
-          } catch (e) { }
-        }, 500);
-      } catch (e) {
-        console.error("Failed to connect to AI Engine:", e);
-        alert("Could not connect to AI Engine.");
-      }
-    }
   };
 
-  const handleSquatRep = (count: number) => {
-    emitRep(count);
-  };
-
-  const handleSquatStats = (stats: any) => {
+  const handleAIStats = (stats: any) => {
     setAiStats(stats);
     setRepCount(stats.count);
   };
@@ -382,43 +348,14 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                   }}>
                     {exerciseType === 'squat' ? (
                       <SquatTracker 
-                        onRep={handleSquatRep} 
-                        onStatsUpdate={handleSquatStats} 
+                        onRep={emitRep} 
+                        onStatsUpdate={handleAIStats} 
                       />
                     ) : (
-                      <>
-                        <img
-                          src={`${AI_ENGINE_URL}/video_feed`}
-                          alt="AI Exercise Detection"
-                          style={{
-                            width: '100%',
-                            maxHeight: '480px',
-                            objectFit: 'contain',
-                            display: 'block',
-                          }}
-                        />
-                        <div style={{
-                          position: 'absolute',
-                          top: '12px',
-                          right: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 12px',
-                          borderRadius: '20px',
-                          background: 'rgba(255,50,50,0.85)',
-                          color: '#fff',
-                          fontSize: '0.75rem',
-                          fontWeight: 'bold',
-                        }}>
-                          <span style={{
-                            width: '8px', height: '8px', borderRadius: '50%',
-                            background: '#fff',
-                            animation: 'pulse 1.5s infinite',
-                          }}></span>
-                          LIVE
-                        </div>
-                      </>
+                      <PushupTracker 
+                        onRep={emitRep} 
+                        onStatsUpdate={handleAIStats} 
+                      />
                     )}
                   </div>
 
