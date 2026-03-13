@@ -124,6 +124,7 @@ export default function LeaderboardPanel() {
     const map = new Map<string, UserStats>();
 
     filtered.forEach((a) => {
+      if (!a.userId?._id) return;
       const uid = a.userId._id;
       if (!map.has(uid)) {
         map.set(uid, {

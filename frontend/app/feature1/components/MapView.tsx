@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import * as turf from "@turf/turf";
 
 // ============================================================================
 // TYPES
@@ -90,6 +91,47 @@ function fmtArea(sqm: number) {
 function actIcon(type: string) { return type === "walk" ? "🚶" : type === "cycle" ? "🚴" : "🏅"; }
 function routeLabel(type: string) { return type === "Polygon" ? "Loop" : "A → B"; }
 
+// Logic to resolve overlaps based on distance
+function resolveConquest(activities: Activity[]): (Activity & { displayRoute?: any })[] {
+  // 1. Sort by distance descending (strongest conquers first)
+  const sorted = [...activities].sort((a, b) => b.distanceMeters - a.distanceMeters);
+  
+  const results: (Activity & { displayRoute?: any })[] = [];
+  let combinedClaimed: any = null;
+
+  sorted.forEach((activity) => {
+    if (activity.route.type !== "Polygon") {
+      results.push(activity);
+      return;
+    }
+
+    try {
+      const currentPoly = turf.polygon(activity.route.coordinates);
+      
+      if (!combinedClaimed) {
+        results.push({ ...activity, displayRoute: activity.route });
+        combinedClaimed = currentPoly;
+      } else {
+        // Find the difference: Current - CombinedClaimed
+        const diff = turf.difference(turf.featureCollection([currentPoly, combinedClaimed]));
+        
+        if (diff) {
+          results.push({ ...activity, displayRoute: diff.geometry });
+          combinedClaimed = turf.union(turf.featureCollection([combinedClaimed, currentPoly]));
+        } else {
+          // Completely conquered!
+          results.push({ ...activity, displayRoute: null });
+        }
+      }
+    } catch (e) {
+      console.warn("Turf operation failed for activity", activity._id, e);
+      results.push({ ...activity, displayRoute: activity.route });
+    }
+  });
+
+  return results;
+}
+
 function fmtDate(d: string) {
   const dt = new Date(d), now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -126,6 +168,7 @@ export default function MapView() {
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [isConquestMode, setIsConquestMode] = useState(false);
 
   // ========================================================================
   // FETCH
@@ -134,10 +177,17 @@ export default function MapView() {
   useEffect(() => {
     (async () => {
       try {
+        console.log("Fetching activities from:", `${API_URL}/api/activities?days=3`);
         const res = await fetch(`${API_URL}/api/activities?days=3`, {
           headers: { "ngrok-skip-browser-warning": "true" },
         });
-        if (res.ok) setActivities(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          console.log("Fetched activities count:", data.length);
+          setActivities(data);
+        } else {
+          console.error("Failed to fetch activities:", res.status);
+        }
       } catch (e) { console.error("Fetch error:", e); }
     })();
   }, []);
@@ -155,9 +205,12 @@ export default function MapView() {
   const userLegend = useMemo(() => {
     const m = new Map<string, { username: string; color: string; loops: number; lines: number; totalArea: number }>();
     filtered.forEach((a) => {
-      const uid = a.userId._id;
+      const uid = (typeof a.userId === "string" ? a.userId : a.userId?._id) as string;
+      const username = (typeof a.userId === "object" ? a.userId?.username : "User " + uid.slice(-4)) || "Unknown";
+      
+      if (!uid) return;
       const color = getUserColor(uid, userColorMapRef.current);
-      if (!m.has(uid)) m.set(uid, { username: a.userId.username, color, loops: 0, lines: 0, totalArea: 0 });
+      if (!m.has(uid)) m.set(uid, { username, color, loops: 0, lines: 0, totalArea: 0 });
       const entry = m.get(uid)!;
       if (a.route.type === "Polygon") { entry.loops++; entry.totalArea += a.areaSquareMeters || 0; }
       else { entry.lines++; }
@@ -180,9 +233,19 @@ export default function MapView() {
 
     const allLatLngs: [number, number][] = [];
 
-    filtered.forEach((activity) => {
-      const color = getUserColor(activity.userId._id, userColorMapRef.current);
-      const isLoop = activity.route.type === "Polygon";
+    // Apply Conquest logic if enabled
+    const displayActivities = isConquestMode ? resolveConquest(filtered) : filtered;
+
+    displayActivities.forEach((activity) => {
+      const uid = (typeof activity.userId === "string" ? activity.userId : activity.userId?._id) as string;
+      const username = (typeof activity.userId === "object" ? activity.userId?.username : "User " + uid?.slice(-4)) || "Unknown";
+      
+      if (!uid) return;
+      const color = getUserColor(uid, userColorMapRef.current);
+      const isLoop = activity.route?.type === "Polygon";
+      
+      // Skip if completely conquered in Conquest Mode
+      if (isConquestMode && isLoop && !(activity as any).displayRoute) return;
 
       // Build tooltip/popup HTML
       const areaRow = isLoop
@@ -197,7 +260,7 @@ export default function MapView() {
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
             <span style="font-size:1.5rem;">${actIcon(activity.activityType)}</span>
             <div>
-              <div style="font-size:0.95rem;font-weight:700;color:#111;">${activity.userId.username}</div>
+              <div style="font-size:0.95rem;font-weight:700;color:#111;">${activity.userId.username} ${isConquestMode ? '(Conqueror)' : ''}</div>
               <div style="font-size:0.72rem;color:#666;">
                 ${fmtDate(activity.startTime)} • ${activity.activityType}
                 <span style="margin-left:6px;padding:2px 6px;background:#eee;color:#444;border-radius:4px;font-size:0.62rem;font-weight:700;">
@@ -228,26 +291,33 @@ export default function MapView() {
 
       if (isLoop) {
         // ── POLYGON (loop route) → filled region ──────────────────────
-        const ring: [number, number][] = activity.route.coordinates[0];
-        if (!ring || ring.length < 4) return;
-        const latLngs = ring.map(([lng, lat]) => [lat, lng] as [number, number]);
-        latLngs.forEach((ll) => allLatLngs.push(ll));
+        const displayGeo = (activity as any).displayRoute || activity.route;
+        
+        let polygon: L.Layer;
+        if (displayGeo.type === "MultiPolygon") {
+          const latLngs = displayGeo.coordinates.map((poly: any) => 
+            poly[0].map(([lng, lat]: any) => [lat, lng])
+          );
+          polygon = L.polygon(latLngs, {
+            color, weight: 2.5, opacity: 0.9, fillColor: color, fillOpacity: 0.35, smoothFactor: 1,
+          }).addTo(map);
+          latLngs.flat().forEach((ll: any) => allLatLngs.push(ll as [number, number]));
+        } else {
+          const ring: [number, number][] = displayGeo.coordinates[0];
+          if (!ring || ring.length < 4) return;
+          const latLngs = ring.map(([lng, lat]) => [lat, lng] as [number, number]);
+          latLngs.forEach((ll) => allLatLngs.push(ll));
 
-        const polygon = L.polygon(latLngs, {
-          color,
-          weight: 2.5,
-          opacity: 0.9,
-          fillColor: color,
-          fillOpacity: 0.22,
-          smoothFactor: 1,
-        }).addTo(map);
+          polygon = L.polygon(latLngs, {
+            color, weight: 2.5, opacity: 0.9, fillColor: color, fillOpacity: 0.35, smoothFactor: 1,
+          }).addTo(map);
+        }
 
         polygon.bindPopup(popupHTML, { maxWidth: 300, className: "fitness-popup" });
-        polygon.on("mouseover", () => polygon.setStyle({ fillOpacity: 0.4, weight: 3.5 }));
-        polygon.on("mouseout", () => polygon.setStyle({ fillOpacity: 0.22, weight: 2.5 }));
+        polygon.on("mouseover", () => (polygon as L.Polygon).setStyle({ fillOpacity: 0.5, weight: 3.5 }));
+        polygon.on("mouseout", () => (polygon as L.Polygon).setStyle({ fillOpacity: 0.35, weight: 2.5 }));
         polygon.on("click", () => setSelectedActivity(activity));
         layersRef.current.push(polygon);
-
       } else {
         // ── LINESTRING (A→B route) → thick colored path ───────────────
         const coords: [number, number][] = activity.route.coordinates;
@@ -296,9 +366,10 @@ export default function MapView() {
 
     // Fit bounds
     if (allLatLngs.length > 0) {
+      console.log("Drawing", layersRef.current.length, "layers for", filtered.length, "activities");
       map.fitBounds(L.latLngBounds(allLatLngs), { padding: [40, 40], maxZoom: 14 });
     }
-  }, [filtered]);
+  }, [filtered, isConquestMode]);
 
   // ========================================================================
   // SEARCH
@@ -336,7 +407,12 @@ export default function MapView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { drawActivities(); }, [drawActivities]);
+  // Redraw when activities change or map is ready
+  useEffect(() => { 
+    if (mapReadyRef.current && activities.length > 0) {
+      drawActivities(); 
+    }
+  }, [drawActivities, isConquestMode, activities, isLoading]);
 
   // Search effect
   useEffect(() => {
@@ -377,8 +453,16 @@ export default function MapView() {
         <div className="map-top-bar">
           <div className="feature1-map-overlay">
             <div className="pulse-dot" />
-            <span>Activity Map</span>
+            <span>{isConquestMode ? 'Conquered Regions' : 'Activity Map'}</span>
           </div>
+
+          <button 
+            className={`map-conquest-toggle ${isConquestMode ? 'active' : ''}`}
+            onClick={() => setIsConquestMode(!isConquestMode)}
+            title="Toggle Conquest Logic (Overlap Resolution)"
+          >
+            🔥 {isConquestMode ? 'Exit Conquest' : 'Conquest Mode'}
+          </button>
 
           <div style={{ display: "flex", gap: 8 }}>
             <div className="map-active-badge">
@@ -452,7 +536,9 @@ export default function MapView() {
 
       {/* Detail card */}
       {selectedActivity && (() => {
-        const c = getUserColor(selectedActivity.userId._id, userColorMapRef.current);
+        const c = selectedActivity.userId?._id 
+        ? getUserColor(selectedActivity.userId._id, userColorMapRef.current)
+        : "#fff";
         const isLoop = selectedActivity.route.type === "Polygon";
         return (
           <div style={{
@@ -463,7 +549,7 @@ export default function MapView() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <span style={{ fontSize: "1.6rem" }}>{actIcon(selectedActivity.activityType)}</span>
               <div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff" }}>{selectedActivity.userId.username}</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff" }}>{selectedActivity.userId?.username || "Unknown"}</div>
                 <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.45)" }}>
                   {fmtDate(selectedActivity.startTime)} • {selectedActivity.activityType}
                   <span style={{ marginLeft: 6, padding: "2px 6px", background: isLoop ? hexToRgba(c, 0.15) : "rgba(255,255,255,0.08)", borderRadius: 4, fontSize: "0.62rem", fontWeight: 700, color: isLoop ? c : "rgba(255,255,255,0.5)" }}>
