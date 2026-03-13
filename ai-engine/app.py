@@ -65,29 +65,23 @@ def generate_frames():
         detector = detectors[active_exercise]
         result = detector.process_frame(frame)
 
-        # Build unified stats
-        if active_exercise == "squat":
-            latest_result = {
-                "exercise": "squat",
-                "count": result["squat_count"],
-                "stage": result["stage"],
-                "angles": {
-                    "knee_angle": result["knee_angle"],
-                    "back_angle": result["back_angle"],
-                },
-                "feedback": result["feedback"],
-            }
-        elif active_exercise == "pushup":
-            latest_result = {
-                "exercise": "pushup",
-                "count": result["pushup_count"],
-                "stage": result["stage"],
-                "angles": {
-                    "elbow_angle": result["elbow_angle"],
-                    "body_angle": result["body_angle"],
-                },
-                "feedback": result["feedback"],
-            }
+        # Build unified stats (use .get() to avoid KeyError across exercise types)
+        count = result.get("squat_count", result.get("pushup_count", 0))
+        angles = {}
+        if "knee_angle" in result:
+            angles["knee_angle"] = result["knee_angle"]
+            angles["back_angle"] = result["back_angle"]
+        if "elbow_angle" in result:
+            angles["elbow_angle"] = result["elbow_angle"]
+            angles["body_angle"] = result["body_angle"]
+
+        latest_result = {
+            "exercise": active_exercise,
+            "count": count,
+            "stage": result.get("stage", "up"),
+            "angles": angles,
+            "feedback": result.get("feedback", []),
+        }
 
         _, buffer = cv2.imencode(".jpg", result["annotated_frame"])
         frame_bytes = buffer.tobytes()
