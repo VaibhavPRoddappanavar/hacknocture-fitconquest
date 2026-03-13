@@ -3,9 +3,10 @@
 import { useEffect, useState, useRef, use } from "react";
 import io from "socket.io-client";
 import Link from "next/link";
+import PushupTracker from "./PushupTracker";
+import SquatTracker from "./SquatTracker";
 
 let socket: any;
-const AI_ENGINE_URL = "http://localhost:5050";
 
 function formatTime(ms: number) {
   const totalSec = Math.floor(ms / 1000);
@@ -33,9 +34,8 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   
   const [aiLimit, setAiLimit] = useState<number | null>(null);
   const [warningLimit, setWarningLimit] = useState<number | null>(null);
+  const [nextMilestone, setNextMilestone] = useState<number | null>(null);
 
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
-  const prevCountRef = useRef(0);
   const challengeRef = useRef<any>(null);
   const userRef = useRef<any>(null);
   const activeExerciseRef = useRef<"squat" | "pushup">("squat");
@@ -60,7 +60,6 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
     return () => {
       if (socket) socket.disconnect();
-      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [challengeId]);
 
@@ -169,53 +168,31 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
         socket.emit("team_start_workout", { challengeId, teamId: myTeam._id });
       }
 
-      await fetch(`${AI_ENGINE_URL}/exercise`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exercise }) });
-      await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
-      
-      // Inject AI health threshold limit into Flask MediaPipe engine limit bounds
-      if (aiLimit) {
-        await fetch(`${AI_ENGINE_URL}/set_limit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: aiLimit }) });
-      } else {
-        await fetch(`${AI_ENGINE_URL}/set_limit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: null }) });
-      }
-      
       setCameraActive(true);
       setWarningLimit(null);
-      prevCountRef.current = 0;
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await fetch(`${AI_ENGINE_URL}/stats`);
-          if (res.ok) {
-            const data = await res.json();
-            setAiStats(data);
-            
-            // Catch AI constraint
-            if (data.is_paused) {
-                setWarningLimit(data.threshold);
-            } else {
-                setWarningLimit(null);
-                const newReps = data.count - prevCountRef.current;
-                if (newReps > 0) { emitRep(newReps); prevCountRef.current = data.count; }
-            }
-          }
-        } catch (e) { }
-      }, 500);
+      setNextMilestone(aiLimit);
+      setAiStats(null);
     } catch (e) {
-      alert("Could not connect to AI Engine. Run: python app.py");
+      console.error(e);
+    }
+  };
+
+  const handleStatsUpdate = (stats: any) => {
+    setAiStats(stats);
+    if (nextMilestone !== null && stats.count >= nextMilestone) {
+        setWarningLimit(nextMilestone);
     }
   };
 
   const continueTracking = async () => {
     setWarningLimit(null);
-    try {
-      await fetch(`${AI_ENGINE_URL}/continue`, { method: "POST" });
-    } catch(e) {}
+    if (aiLimit !== null && nextMilestone !== null) {
+      setNextMilestone(nextMilestone + aiLimit);
+    }
   };
 
   const stopCamera = () => {
     setCameraActive(false);
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
   const switchExercise = (exercise: "squat" | "pushup") => {
@@ -333,7 +310,11 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
               <div>
                 {/* Video */}
                 <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '2px solid rgba(99,102,241,0.3)', marginBottom: '1.5rem', background: '#000' }}>
-                  <img src={`${AI_ENGINE_URL}/video_feed`} alt="AI Detection" style={{ width: '100%', maxHeight: '480px', objectFit: 'contain', display: 'block' }} />
+                  {activeExercise === 'pushup' ? (
+                     <PushupTracker isPaused={warningLimit !== null} onRep={(n) => emitRep(n)} onStatsUpdate={handleStatsUpdate} />
+                  ) : (
+                     <SquatTracker isPaused={warningLimit !== null} onRep={(n) => emitRep(n)} onStatsUpdate={handleStatsUpdate} />
+                  )}
                   
                   {warningLimit !== null && (
                       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: '2rem', textAlign: 'center', backdropFilter: 'blur(8px)' }}>
@@ -347,13 +328,6 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                           </button>
                       </div>
                   )}
-
-                  <div style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 12px', borderRadius: '20px', background: activeExercise === 'squat' ? 'rgba(99,102,241,0.85)' : 'rgba(6,182,212,0.85)', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    {activeExercise === 'squat' ? '🦵 SQUATS' : '💪 PUSHUPS'}
-                  </div>
-                  <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: 'rgba(255,50,50,0.85)', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#fff', animation: 'pulse 1.5s infinite' }}></span>LIVE
-                  </div>
                 </div>
 
                 {/* Stats */}

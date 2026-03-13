@@ -25,7 +25,7 @@ function calcAngle(a: number[], b: number[], c: number[]) {
   return angle;
 }
 
-export default function SquatTracker({ onRep, onStatsUpdate }: { onRep: (num: number) => void, onStatsUpdate: (stats: any) => void }) {
+export default function SquatTracker({ onRep, onStatsUpdate, isPaused = false }: { onRep: (num: number) => void, onStatsUpdate: (stats: any) => void, isPaused?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -38,6 +38,9 @@ export default function SquatTracker({ onRep, onStatsUpdate }: { onRep: (num: nu
     stage: "up",
     feedback: "Stand in front of the camera"
   });
+
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   useEffect(() => {
     let active = true;
@@ -167,9 +170,11 @@ export default function SquatTracker({ onRep, onStatsUpdate }: { onRep: (num: nu
 
           if (kneeAngle > 160) {
              if (state.stage === "down") {
-                 state.counter += 1;
+                 if (!isPausedRef.current) {
+                     state.counter += 1;
+                     onRep(1);
+                 }
                  state.feedback = "Rep complete! Good job";
-                 onRep(1);
              }
              state.stage = "up";
              if (feedback_lines.length === 0 && state.stage === "up" && !state.feedback.includes("complete")) {

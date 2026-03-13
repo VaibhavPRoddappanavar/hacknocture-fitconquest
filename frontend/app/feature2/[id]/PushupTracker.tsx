@@ -26,7 +26,7 @@ function calcAngle(a: number[], b: number[], c: number[]) {
   return angle;
 }
 
-export default function PushupTracker({ onRep, onStatsUpdate }: { onRep: (num: number) => void, onStatsUpdate: (stats: any) => void }) {
+export default function PushupTracker({ onRep, onStatsUpdate, isPaused = false }: { onRep: (num: number) => void, onStatsUpdate: (stats: any) => void, isPaused?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -39,6 +39,9 @@ export default function PushupTracker({ onRep, onStatsUpdate }: { onRep: (num: n
     stage: "up",
     feedback: "Stand in front of the camera"
   });
+
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   useEffect(() => {
     let active = true;
@@ -162,8 +165,10 @@ export default function PushupTracker({ onRep, onStatsUpdate }: { onRep: (num: n
           }
           if (elbowAngle > UP_ANGLE && state.stage === "down") {
             state.stage = "up";
-            state.counter += 1;
-            onRep(1);
+            if (!isPausedRef.current) {
+              state.counter += 1;
+              onRep(1);
+            }
           }
 
           if (state.stage === "down") {
