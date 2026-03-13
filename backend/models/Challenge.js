@@ -15,19 +15,31 @@ const challengeSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['upcoming', 'active', 'completed'],
-    default: 'upcoming'
+    enum: ['active', 'completed'],
+    default: 'active'
+  },
+  exerciseType: {
+    type: String,
+    enum: ['squat', 'pushup', 'mixed'],
+    default: 'squat'
   },
   targetSquats: {
     type: Number,
-    required: true,
-    default: 10000
+    default: 0
+  },
+  targetPushups: {
+    type: Number,
+    default: 0
   },
   teams: [
     {
       teamName: { type: String, required: true },
       members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-      totalSquats: { type: Number, default: 0 }
+      totalSquats: { type: Number, default: 0 },
+      totalPushups: { type: Number, default: 0 },
+      startedWorkoutAt: { type: Date, default: null },
+      completedAt: { type: Date, default: null },
+      timeTakenMs: { type: Number, default: null }
     }
   ],
   host: {

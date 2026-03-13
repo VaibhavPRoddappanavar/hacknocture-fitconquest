@@ -19,7 +19,7 @@ export default function Feature2() {
   const fetchUser = async (token: string) => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/me`, {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true'
         },
@@ -41,7 +41,7 @@ export default function Feature2() {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/login`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true"
         },
@@ -97,6 +97,20 @@ export default function Feature2() {
     }
   };
 
+  const getExerciseLabel = (c: any) => {
+    const type = c.exerciseType || 'squat';
+    if (type === 'squat') return `🦵 ${c.targetSquats} Squats`;
+    if (type === 'pushup') return `💪 ${c.targetPushups} Pushups`;
+    if (type === 'mixed') return `🔥 ${c.targetSquats} Squats + ${c.targetPushups} Pushups`;
+    return '';
+  };
+
+  const getExerciseBadgeColor = (type: string) => {
+    if (type === 'squat') return { bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.3)', color: '#818cf8' };
+    if (type === 'pushup') return { bg: 'rgba(6,182,212,0.12)', border: 'rgba(6,182,212,0.3)', color: '#22d3ee' };
+    return { bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.3)', color: '#fb923c' };
+  };
+
   if (!user) {
     return (
       <div className="feature-page feature-2-page" id="feature-2-page" style={{ minHeight: '80vh', padding: '10rem 2rem' }}>
@@ -132,16 +146,32 @@ export default function Feature2() {
           const isInRed = c.teams[0].members.find((m:any) => m._id === userId || m === userId);
           const isInBlue = c.teams[1].members.find((m:any) => m._id === userId || m === userId);
           const isParticipant = isInRed || isInBlue;
+          const badgeStyle = getExerciseBadgeColor(c.exerciseType || 'squat');
 
           return (
             <div key={c._id} style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '20px', padding: '2rem', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h3 style={{ fontSize: '1.4rem' }}>{c.title}</h3>
                 <span style={{ padding: '0.3rem 0.8rem', background: c.status === 'active' ? 'rgba(0,255,0,0.1)' : c.status === 'completed' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,0,0.1)', color: c.status === 'active' ? '#4ade80' : c.status === 'completed' ? '#aaa' : '#fde047', borderRadius: '20px', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 'bold' }}>
                   {c.status}
                 </span>
               </div>
-              
+
+              {/* Exercise type badge */}
+              <div style={{
+                display: 'inline-block',
+                padding: '0.3rem 0.8rem',
+                borderRadius: '8px',
+                background: badgeStyle.bg,
+                border: `1px solid ${badgeStyle.border}`,
+                color: badgeStyle.color,
+                fontSize: '0.85rem',
+                fontWeight: 'bold',
+                marginBottom: '1.5rem',
+              }}>
+                {getExerciseLabel(c)}
+              </div>
+
               <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
                 <div style={{ flex: 1, background: 'rgba(255,100,100,0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,100,100,0.1)' }}>
                   <h4 style={{ color: '#ff8888', marginBottom: '0.5rem' }}>Team Red</h4>

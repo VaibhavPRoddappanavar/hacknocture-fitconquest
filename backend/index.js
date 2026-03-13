@@ -12,83 +12,103 @@ const leaderboardRoutes = require('./routes/leaderboard');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 
-// Database Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB Connected'))
   .catch(err => console.error(err));
 
-// Socket.io for Real-time Squat Loop
+// ── Check if team completed ─────────────────────────────────────────────────
+function isTeamComplete(challenge, team) {
+  const type = challenge.exerciseType || 'squat';
+  if (type === 'squat') return team.totalSquats >= challenge.targetSquats;
+  if (type === 'pushup') return team.totalPushups >= challenge.targetPushups;
+  if (type === 'mixed') return team.totalSquats >= challenge.targetSquats && team.totalPushups >= challenge.targetPushups;
+  return false;
+}
+
+// ── Handle a rep ─────────────────────────────────────────────────────────────
+async function handleRep(challengeId, teamId, userId, count, exerciseField) {
+  const Challenge = require('./models/Challenge');
+  const User = require('./models/User');
+
+  try {
+    const challenge = await Challenge.findById(challengeId);
+    if (!challenge || challenge.status !== 'active') return;
+
+    const team = challenge.teams.id(teamId);
+    if (!team) return;
+    if (team.completedAt) return; // already finished, ignore
+
+    if (exerciseField === 'squats') team.totalSquats += count;
+    else team.totalPushups += count;
+
+    // Check if this team just completed
+    if (isTeamComplete(challenge, team) && !team.completedAt) {
+      team.completedAt = new Date();
+      if (team.startedWorkoutAt) {
+        team.timeTakenMs = team.completedAt.getTime() - team.startedWorkoutAt.getTime();
+      }
+    }
+
+    await challenge.save();
+
+    const updated = await Challenge.findById(challengeId)
+      .populate('teams.members', 'username stats location');
+
+    io.to(challengeId).emit('score_update', {
+      challengeId,
+      teams: updated.teams,
+    });
+
+    // Update user stats
+    const user = await User.findById(userId);
+    if (user) {
+      user.stats.totalSquats += count;
+      await user.save();
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ── Socket ───────────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('join_challenge', (challengeId) => {
     socket.join(challengeId);
-    console.log(`Socket ${socket.id} joined challenge ${challengeId}`);
   });
 
-  socket.on('start_challenge', async (challengeId) => {
-    io.to(challengeId).emit('challenge_started');
-  });
-
-  socket.on('squat_performed', async ({ challengeId, teamId, userId, count }) => {
-    // In a real app we would update the DB less frequently or queue it.
-    // For this simulation, we'll update it here directly or broadcast to others.
-    
+  // Team starts their workout
+  socket.on('team_start_workout', async ({ challengeId, teamId }) => {
     const Challenge = require('./models/Challenge');
     try {
       const challenge = await Challenge.findById(challengeId);
-      if (challenge && challenge.status === 'active') {
-        const team = challenge.teams.id(teamId);
-        if (team) {
-          team.totalSquats += count;
-          await challenge.save();
-          
-          // Re-fetch challenge completely to ensure correct populating (or just proper format) for all clients
-          const updatedChallenge = await Challenge.findById(challengeId)
-                .populate('teams.members', 'username stats location');
-                
-          // Broadcast to everyone in the room
-          io.to(challengeId).emit('score_update', {
-            challengeId,
-            teams: updatedChallenge.teams,
-            winnerTeam: updatedChallenge.winnerTeam
-          });
-
-          // Also increment user squat
-          const User = require('./models/User');
-          const user = await User.findById(userId);
-          if (user) {
-            user.stats.totalSquats += count;
-            await user.save();
-          }
-
-          if (team.totalSquats >= challenge.targetSquats && !challenge.winnerTeam) {
-             challenge.status = 'completed';
-             challenge.winnerTeam = team.teamName;
-             await challenge.save();
-             io.to(challengeId).emit('challenge_completed', {
-                winnerTeam: team.teamName
-             });
-          }
-        }
+      if (!challenge) return;
+      const team = challenge.teams.id(teamId);
+      if (team && !team.startedWorkoutAt) {
+        team.startedWorkoutAt = new Date();
+        await challenge.save();
+        console.log(`Team ${team.teamName} started workout for challenge ${challengeId}`);
       }
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (e) { console.error(e); }
+  });
+
+  socket.on('squat_performed', async ({ challengeId, teamId, userId, count }) => {
+    await handleRep(challengeId, teamId, userId, count, 'squats');
+  });
+
+  socket.on('pushup_performed', async ({ challengeId, teamId, userId, count }) => {
+    await handleRep(challengeId, teamId, userId, count, 'pushups');
   });
 
   socket.on('disconnect', () => {
