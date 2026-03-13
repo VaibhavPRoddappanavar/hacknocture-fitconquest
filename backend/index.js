@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const challengeRoutes = require('./routes/challenges');
 const leaderboardRoutes = require('./routes/leaderboard');
 const activityRoutes = require('./routes/activities');
+const shareRoutes = require('./routes/share');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/share', shareRoutes);
 
 // Database Connection
 mongoose.connect(process.env.MONGO_URI)

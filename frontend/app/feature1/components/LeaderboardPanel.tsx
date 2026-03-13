@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import html2canvas from "html2canvas";
+import { useState, useMemo, useEffect, useRef } from "react";
 import "../feature1.css";
 
 // ============================================================================
@@ -35,11 +36,48 @@ interface UserStats {
   score: number; // dynamically holds the value we are sorting by
 }
 
+interface SharePayload {
+  caption: string;
+  shareData: {
+    userId: string;
+    username: string;
+    mode: ActivityMode;
+    timeFilter: TimeFilter;
+    sortMetric: SortMetric;
+    rank: number;
+    distanceMeters: number;
+    distanceKm: number;
+    durationSeconds: number;
+    durationMinutes: number;
+    areaSquareMeters: number;
+    areaSquareKm: number;
+    mapCenter: { lat: number; lng: number };
+    mapBox: {
+      minLat: number;
+      maxLat: number;
+      minLng: number;
+      maxLng: number;
+    } | null;
+    routePoints: Array<{ lat: number; lng: number }>;
+    mapImageUrl: string;
+    activityCount: number;
+  };
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    throw new Error(`Expected JSON but received ${contentType || "unknown"}: ${text.slice(0, 140)}`);
+  }
+  return response.json();
+}
 
 function fmtArea(sqm: number): string {
   if (sqm >= 1_000_000) return (sqm / 1_000_000).toFixed(2) + " km²";
@@ -59,6 +97,58 @@ function fmtDur(s: number): string {
   return `${m}m`;
 }
 
+function buildRoutePolyline(
+  points: Array<{ lat: number; lng: number }>,
+  mapBox: SharePayload["shareData"]["mapBox"],
+  width: number,
+  height: number,
+): string {
+  if (!points.length) return "";
+
+  const padding = 24;
+  const drawableWidth = width - padding * 2;
+  const drawableHeight = height - padding * 2;
+
+  let minLat = mapBox?.minLat ?? Infinity;
+  let maxLat = mapBox?.maxLat ?? -Infinity;
+  let minLng = mapBox?.minLng ?? Infinity;
+  let maxLng = mapBox?.maxLng ?? -Infinity;
+
+  if (!mapBox) {
+    points.forEach((point) => {
+      if (point.lat < minLat) minLat = point.lat;
+      if (point.lat > maxLat) maxLat = point.lat;
+      if (point.lng < minLng) minLng = point.lng;
+      if (point.lng > maxLng) maxLng = point.lng;
+    });
+  }
+
+  const lngRange = Math.max(maxLng - minLng, 0.00001);
+  const latRange = Math.max(maxLat - minLat, 0.00001);
+
+  return points
+    .map((point) => {
+      const x = padding + ((point.lng - minLng) / lngRange) * drawableWidth;
+      const y = padding + (1 - (point.lat - minLat) / latRange) * drawableHeight;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function isClosedLoop(points: Array<{ lat: number; lng: number }>, mapBox: SharePayload["shareData"]["mapBox"]): boolean {
+  if (points.length < 4) return false;
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  const latRange = Math.max((mapBox?.maxLat ?? first.lat) - (mapBox?.minLat ?? first.lat), 0.00001);
+  const lngRange = Math.max((mapBox?.maxLng ?? first.lng) - (mapBox?.minLng ?? first.lng), 0.00001);
+
+  const latDiff = Math.abs(first.lat - last.lat) / latRange;
+  const lngDiff = Math.abs(first.lng - last.lng) / lngRange;
+
+  return latDiff < 0.08 && lngDiff < 0.08;
+}
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -70,6 +160,13 @@ export default function LeaderboardPanel() {
   const [mode, setMode] = useState<ActivityMode>("walk");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
   const [sortMetric, setSortMetric] = useState<SortMetric>("area");
+  const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null);
+  const [isShareLoading, setIsShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [sharePayload, setSharePayload] = useState<SharePayload | null>(null);
+  const [shareStatus, setShareStatus] = useState<string>("");
+
+  const shareCaptureRef = useRef<HTMLDivElement>(null);
 
   // Fetch activities on mount (fetch last 30 days for enough data)
   useEffect(() => {
@@ -79,9 +176,11 @@ export default function LeaderboardPanel() {
         const res = await fetch(`${API_URL}/api/activities?days=30&limit=1000`, {
           headers: { "ngrok-skip-browser-warning": "true" },
         });
-        if (res.ok) {
-          setActivities(await res.json());
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`Activities request failed (${res.status}): ${errorText.slice(0, 140)}`);
         }
+        setActivities(await parseJsonResponse<Activity[]>(res));
       } catch (err) {
         console.error("Failed to fetch activities:", err);
       } finally {
@@ -89,6 +188,26 @@ export default function LeaderboardPanel() {
       }
     }
     fetchAll();
+  }, []);
+
+  // Load logged-in user from JWT
+  useEffect(() => {
+    async function fetchLoggedInUser() {
+      const token = window.localStorage.getItem("fit_token");
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setLoggedInUserId(data?._id || data?.id || null);
+      } catch {
+        setLoggedInUserId(null);
+      }
+    }
+    fetchLoggedInUser();
   }, []);
 
   // Compute leaderboard
@@ -181,6 +300,97 @@ export default function LeaderboardPanel() {
     return "";
   };
 
+  const loggedInUserStats = useMemo(() => {
+    if (!loggedInUserId) return null;
+    return sortedUsers.find((user) => user.id === loggedInUserId) || null;
+  }, [loggedInUserId, sortedUsers]);
+
+  const topThreeUsers = useMemo(() => sortedUsers.slice(0, 3), [sortedUsers]);
+
+  async function handlePostOnInstagram() {
+    setShareError(null);
+    setShareStatus("");
+
+    const token = window.localStorage.getItem("fit_token");
+    if (!token) {
+      setShareError("Login required. Please login in Feature 2 first.");
+      return;
+    }
+
+    if (!loggedInUserStats) {
+      setShareError("Logged-in user not found in this leaderboard filter.");
+      return;
+    }
+
+    try {
+      setIsShareLoading(true);
+
+      const res = await fetch(`${API_URL}/api/share/instagram-caption`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ mode, timeFilter, sortMetric }),
+      });
+
+      let json: SharePayload | { error?: string };
+      try {
+        json = await parseJsonResponse<SharePayload | { error?: string }>(res);
+      } catch (parseErr) {
+        const message = parseErr instanceof Error ? parseErr.message : "Invalid server response";
+        throw new Error(message);
+      }
+
+      if (!res.ok) {
+        const message = ("error" in json && json.error) ? json.error : "Failed to generate Instagram content";
+        throw new Error(message);
+      }
+
+      setSharePayload(json as SharePayload);
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      if (!shareCaptureRef.current) {
+        throw new Error("Share preview element not ready");
+      }
+
+      const canvas = await html2canvas(shareCaptureRef.current, {
+        backgroundColor: "#070910",
+        scale: 2,
+        useCORS: true,
+      });
+
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 1));
+      if (!blob) {
+        throw new Error("Failed to export screenshot");
+      }
+
+      const imageUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = imageUrl;
+      anchor.download = `fitconquest-${mode}-${timeFilter}-${Date.now()}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(imageUrl);
+
+      try {
+        await navigator.clipboard.writeText((json as SharePayload).caption);
+      } catch {
+        // ignore clipboard failure
+      }
+
+      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+      setShareStatus("Screenshot downloaded and caption copied. Paste it in Instagram post/caption.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create Instagram content";
+      setShareError(message);
+    } finally {
+      setIsShareLoading(false);
+    }
+  }
+
   return (
     <div className="feature1-leaderboard-content-wrapper">
       <div className="lb-header">
@@ -189,6 +399,13 @@ export default function LeaderboardPanel() {
           <div className="lb-live-indicator">LIVE</div>
         </div>
         <p>Real-time rankings based on actual user activities</p>
+        <div className="lb-share-actions">
+          <button className="lb-share-btn" onClick={handlePostOnInstagram} disabled={isShareLoading}>
+            {isShareLoading ? "Generating post..." : "Post on Instagram"}
+          </button>
+          {shareError && <span className="lb-share-error">{shareError}</span>}
+          {!shareError && shareStatus && <span className="lb-share-success">{shareStatus}</span>}
+        </div>
       </div>
 
       {/* Mode Tabs */}
@@ -304,6 +521,116 @@ export default function LeaderboardPanel() {
             </div>
           </div>
         </div>
+      </div>
+
+      {sharePayload && (
+        <div className="ig-share-preview-block">
+          <h3>Instagram Share Preview</h3>
+          <p>{sharePayload.caption}</p>
+        </div>
+      )}
+
+      <div className="ig-share-capture-root" aria-hidden="true">
+        {sharePayload && (
+          <div ref={shareCaptureRef} className="ig-share-card">
+            <div className="ig-share-head">
+              <span>FitConquest Daily Map</span>
+              <strong>@{sharePayload.shareData.username}</strong>
+            </div>
+
+            <div className="ig-share-map-img ig-share-map-canvas">
+              <img
+                src={`${API_URL}/api/share/static-map?lat=${sharePayload.shareData.mapCenter.lat}&lng=${sharePayload.shareData.mapCenter.lng}&zoom=12&width=1012&height=380`}
+                alt="Map background"
+                className="ig-share-map-bg"
+                crossOrigin="anonymous"
+              />
+
+              {sharePayload.shareData.routePoints?.length > 1 ? (
+                <svg
+                  className="ig-share-route-svg"
+                  viewBox="0 0 1012 380"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient id="ig-route" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#22d3ee" />
+                      <stop offset="50%" stopColor="#818cf8" />
+                      <stop offset="100%" stopColor="#c084fc" />
+                    </linearGradient>
+                  </defs>
+
+                  {isClosedLoop(sharePayload.shareData.routePoints, sharePayload.shareData.mapBox) && (
+                    <polygon
+                      points={buildRoutePolyline(sharePayload.shareData.routePoints, sharePayload.shareData.mapBox, 1012, 380)}
+                      fill="rgba(236, 72, 153, 0.28)"
+                      stroke="none"
+                    />
+                  )}
+
+                  <polyline
+                    points={buildRoutePolyline(sharePayload.shareData.routePoints, sharePayload.shareData.mapBox, 1012, 380)}
+                    fill="none"
+                    stroke="url(#ig-route)"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity="0.95"
+                  />
+                </svg>
+              ) : (
+                <div className="ig-share-map-fallback">No route geometry available for map preview</div>
+              )}
+            </div>
+
+            <div className="ig-share-metrics-grid">
+              <div>
+                <span>Distance</span>
+                <strong>{fmtDist(sharePayload.shareData.distanceMeters)}</strong>
+              </div>
+              <div>
+                <span>Time</span>
+                <strong>{fmtDur(sharePayload.shareData.durationSeconds)}</strong>
+              </div>
+              <div>
+                <span>Area</span>
+                <strong>{fmtArea(sharePayload.shareData.areaSquareMeters)}</strong>
+              </div>
+              <div>
+                <span>Rank</span>
+                <strong>#{sharePayload.shareData.rank}</strong>
+              </div>
+            </div>
+
+            <div className="ig-share-map-box">
+              <span>Map Box</span>
+              {sharePayload.shareData.mapBox ? (
+                <p>
+                  lat [{sharePayload.shareData.mapBox.minLat.toFixed(4)}, {sharePayload.shareData.mapBox.maxLat.toFixed(4)}] •
+                  lng [{sharePayload.shareData.mapBox.minLng.toFixed(4)}, {sharePayload.shareData.mapBox.maxLng.toFixed(4)}]
+                </p>
+              ) : (
+                <p>No detailed route bounds available</p>
+              )}
+            </div>
+
+            <div className="ig-share-leaderboard-mini">
+              <h4>Leaderboard Snapshot</h4>
+              {topThreeUsers.map((entry, index) => (
+                <div key={entry.id} className="ig-share-leaderboard-row">
+                  <span>#{index + 1} {entry.username}</span>
+                  <strong>{formatScore(entry.score, sortMetric)}</strong>
+                </div>
+              ))}
+              {loggedInUserStats && (
+                <div className="ig-share-leaderboard-row ig-share-leaderboard-row--you">
+                  <span>You: {loggedInUserStats.username}</span>
+                  <strong>{formatScore(loggedInUserStats.score, sortMetric)}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

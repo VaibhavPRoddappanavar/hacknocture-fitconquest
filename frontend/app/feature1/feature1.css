@@ -388,6 +388,223 @@
     line-height: 1.4;
 }
 
+.lb-share-actions {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.lb-share-btn {
+    border: 1px solid rgba(129, 140, 248, 0.5);
+    background: rgba(99, 102, 241, 0.18);
+    color: #dbe4ff;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lb-share-btn:hover {
+    background: rgba(99, 102, 241, 0.28);
+}
+
+.lb-share-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.lb-share-error {
+    font-size: 0.75rem;
+    color: #fca5a5;
+}
+
+.lb-share-success {
+    font-size: 0.75rem;
+    color: #86efac;
+}
+
+.ig-share-preview-block {
+    margin: 16px 28px 0;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(12, 14, 25, 0.8);
+}
+
+.ig-share-preview-block h3 {
+    font-size: 0.9rem;
+    color: #c7d2fe;
+    margin-bottom: 6px;
+}
+
+.ig-share-preview-block p {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.45;
+}
+
+.ig-share-capture-root {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    opacity: 1;
+    pointer-events: none;
+}
+
+.ig-share-card {
+    width: 1080px;
+    background: linear-gradient(180deg, #070910 0%, #0d1220 100%);
+    color: #fff;
+    border-radius: 24px;
+    padding: 34px;
+    border: 1px solid rgba(129, 140, 248, 0.28);
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.ig-share-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 26px;
+    font-weight: 800;
+}
+
+.ig-share-head span {
+    color: #c7d2fe;
+}
+
+.ig-share-map-img {
+    width: 100%;
+    height: 380px;
+    object-fit: cover;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    margin-bottom: 16px;
+}
+
+.ig-share-map-canvas {
+    background: #e5e7eb;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+}
+
+.ig-share-map-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 1;
+    filter: none;
+}
+
+.ig-share-route-svg {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 2;
+}
+
+.ig-share-map-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(203, 213, 225, 0.75);
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.ig-share-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.ig-share-metrics-grid div {
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(129, 140, 248, 0.3);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ig-share-metrics-grid span {
+    font-size: 17px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ig-share-metrics-grid strong {
+    font-size: 22px;
+    color: #e2e8f0;
+}
+
+.ig-share-map-box {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.ig-share-map-box span {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #cbd5e1;
+}
+
+.ig-share-map-box p {
+    margin: 0;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.76);
+}
+
+.ig-share-leaderboard-mini {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(15, 23, 42, 0.45);
+    padding: 12px 14px;
+}
+
+.ig-share-leaderboard-mini h4 {
+    margin: 0 0 10px;
+    font-size: 19px;
+    color: #c7d2fe;
+}
+
+.ig-share-leaderboard-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 17px;
+}
+
+.ig-share-leaderboard-row:last-child {
+    border-bottom: none;
+}
+
+.ig-share-leaderboard-row--you {
+    color: #c7d2fe;
+    font-weight: 700;
+}
+
 /* Tabs */
 .lb-tabs {
     display: flex;
