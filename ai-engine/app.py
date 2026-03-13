@@ -26,6 +26,17 @@ detectors = {
     "pushup": PushupTracker(),
 }
 active_exercise = "squat"  # default exercise
+verifier = None
+current_user_id = None
+challenge_type = "squat"
+
+registration_state = {
+    "is_registering": False,
+    "user_id": None,
+    "saved_frames": 0,
+    "target_frames": 15,
+    "last_capture_time": 0
+}
 
 camera = None
 camera_lock = threading.Lock()
@@ -62,8 +73,69 @@ def generate_frames():
 
         frame = cv2.flip(frame, 1)
 
+        import time
+        global verifier, registration_state
+        
+        if registration_state["is_registering"]:
+            current_time = time.time()
+            annotated_frame = frame.copy()
+            if current_time - registration_state["last_capture_time"] >= 0.33:
+                from face_verifier import process_registration_frame
+                success = process_registration_frame(frame, registration_state["user_id"], registration_state["saved_frames"])
+                if success:
+                    registration_state["saved_frames"] += 1
+                    registration_state["last_capture_time"] = current_time
+                    if registration_state["saved_frames"] >= registration_state["target_frames"]:
+                        registration_state["is_registering"] = False
+            
+            h, w, _ = annotated_frame.shape
+            cv2.putText(annotated_frame, f"Capturing: {registration_state['saved_frames']}/{registration_state['target_frames']}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+            cv2.putText(annotated_frame, "Turn head slowly... Look left & right", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+            
+            _, buffer = cv2.imencode(".jpg", annotated_frame)
+            frame_bytes = buffer.tobytes()
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+            )
+            continue
+        
+        trust_score = 100
+        is_paused = False
+        alert_msg = ""
+        
+        if verifier is not None:
+            v_res = verifier.verify(frame, time.time())
+            trust_score = v_res["trust_score"]
+            alert_msg = v_res["alert"]
+            is_paused = v_res["pause"]
+
+        if is_paused:
+            annotated_frame = frame.copy()
+            cv2.putText(annotated_frame, "WARNING: " + alert_msg, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+            cv2.putText(annotated_frame, f"Trust Score: {trust_score}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+            cv2.putText(annotated_frame, "REPS PAUSED!", (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
+
+            latest_result["feedback"] = ["⚠️ " + alert_msg, "REPS PAUSED"]
+            latest_result["trust_score"] = trust_score
+            
+            _, buffer = cv2.imencode(".jpg", annotated_frame)
+            frame_bytes = buffer.tobytes()
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+            )
+            continue
+
         detector = detectors[active_exercise]
         result = detector.process_frame(frame)
+        annotated_frame = result["annotated_frame"]
+        
+        if verifier is not None:
+            h, w, _ = annotated_frame.shape
+            color = (0, 255, 0) if trust_score > 70 else (0, 165, 255)
+            cv2.putText(annotated_frame, f"Trust Score: {trust_score}", (20, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            cv2.putText(annotated_frame, f"Status: {alert_msg}", (20, h - 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
         # Build unified stats (use .get() to avoid KeyError across exercise types)
         count = result.get("squat_count", result.get("pushup_count", 0))
@@ -81,9 +153,10 @@ def generate_frames():
             "stage": result.get("stage", "up"),
             "angles": angles,
             "feedback": result.get("feedback", []),
+            "trust_score": trust_score,
         }
 
-        _, buffer = cv2.imencode(".jpg", result["annotated_frame"])
+        _, buffer = cv2.imencode(".jpg", annotated_frame)
         frame_bytes = buffer.tobytes()
 
         yield (
@@ -156,6 +229,49 @@ def exercise():
         "message": f"Switched to {active_exercise}",
         "active_exercise": active_exercise,
     })
+
+@app.route("/set_context", methods=["POST"])
+def set_context():
+    global current_user_id, challenge_type, verifier
+    data = request.get_json(force=True)
+    current_user_id = data.get("userId")
+    challenge_type = data.get("challengeType", "squat")
+    
+    if challenge_type == "mixed" and current_user_id:
+        from face_verifier import FaceVerifier
+        verifier = FaceVerifier(current_user_id)
+    else:
+        verifier = None
+        
+    return jsonify({"status": "context_set", "userId": current_user_id, "challengeType": challenge_type})
+
+@app.route("/register_face", methods=["POST"])
+def register_face():
+    data = request.get_json(force=True)
+    user_id = data.get("userId")
+    if not user_id:
+         return jsonify({"error": "userId required"}), 400
+         
+    global registration_state
+    import time
+    
+    registration_state["is_registering"] = True
+    registration_state["user_id"] = user_id
+    registration_state["saved_frames"] = 0
+    registration_state["last_capture_time"] = 0
+    
+    # Poll until registration finishes (approx 5 seconds)
+    for _ in range(70): 
+        if not registration_state["is_registering"]:
+            break
+        time.sleep(0.1)
+        
+    registration_state["is_registering"] = False # Force false just in case
+    
+    saved = registration_state["saved_frames"]
+    if saved > 0:
+        return jsonify({"message": f"Saved {saved} frames", "status": "success"})
+    return jsonify({"error": "Failed to detect face"}), 400
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

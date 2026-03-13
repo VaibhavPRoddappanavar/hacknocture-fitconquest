@@ -65,7 +65,7 @@ const seed = async () => {
         { teamName: "Blue", members: [users[1]._id, users[3]._id], totalSquats: 0, totalPushups: 0 },
         {
           teamName: "Green",
-          members: [users[5]._id, users[6]._id],  // sneha, karthik
+          members: [users[4]._id],  // testuser
           totalSquats: 5, totalPushups: 0,
           startedWorkoutAt: c1GreenStart,
           completedAt: c1GreenDone.completedAt,
@@ -73,7 +73,7 @@ const seed = async () => {
         },
         {
           teamName: "Yellow",
-          members: [users[7]._id, users[8]._id],  // meera, dev
+          members: [users[0]._id, users[1]._id], // overlapping for demo
           totalSquats: 3, totalPushups: 0,
           startedWorkoutAt: c1YellowStart,
           completedAt: null, timeTakenMs: null,
@@ -103,7 +103,7 @@ const seed = async () => {
         { teamName: "Blue", members: [users[1]._id, users[3]._id], totalSquats: 0, totalPushups: 0 },
         {
           teamName: "Orange",
-          members: [users[5]._id, users[7]._id],  // sneha, meera
+          members: [users[4]._id],  // testuser
           totalSquats: 0, totalPushups: 5,
           startedWorkoutAt: c2OrangeStart,
           completedAt: c2OrangeDone.completedAt,
@@ -111,7 +111,7 @@ const seed = async () => {
         },
         {
           teamName: "Purple",
-          members: [users[6]._id, users[8]._id],  // karthik, dev
+          members: [users[0]._id, users[1]._id],  
           totalSquats: 0, totalPushups: 5,
           startedWorkoutAt: c2PurpleStart,
           completedAt: c2PurpleDone.completedAt,
@@ -119,7 +119,7 @@ const seed = async () => {
         },
         {
           teamName: "Silver",
-          members: [users[9]._id],  // ananya
+          members: [users[2]._id],  
           totalSquats: 0, totalPushups: 2,
           startedWorkoutAt: fakeStart(25),
           completedAt: null, timeTakenMs: null,
@@ -148,7 +148,7 @@ const seed = async () => {
         { teamName: "Blue", members: [users[1]._id, users[3]._id], totalSquats: 0, totalPushups: 0 },
         {
           teamName: "Cyan",
-          members: [users[5]._id, users[6]._id],
+          members: [users[4]._id],
           totalSquats: 5, totalPushups: 5,
           startedWorkoutAt: c3CyanStart,
           completedAt: c3CyanDone.completedAt,
@@ -156,7 +156,7 @@ const seed = async () => {
         },
         {
           teamName: "Magenta",
-          members: [users[7]._id, users[8]._id],
+          members: [users[0]._id, users[1]._id],
           totalSquats: 4, totalPushups: 3,
           startedWorkoutAt: c3MagentaStart,
           completedAt: null, timeTakenMs: null,

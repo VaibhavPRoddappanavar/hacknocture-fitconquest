@@ -22,6 +22,8 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const [cameraActive, setCameraActive] = useState(false);
   const [activeExercise, setActiveExercise] = useState<"squat" | "pushup">("squat");
   const [aiStats, setAiStats] = useState<any>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [faceRegistered, setFaceRegistered] = useState(false);
 
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const prevCountRef = useRef(0);
@@ -111,6 +113,12 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
         socket.emit("team_start_workout", { challengeId, teamId: myTeam._id });
       }
 
+      await fetch(`${AI_ENGINE_URL}/set_context`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userRef.current?._id || userRef.current?.id, challengeType: challengeRef.current?.exerciseType })
+      });
+
       await fetch(`${AI_ENGINE_URL}/exercise`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exercise }) });
       await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
       setCameraActive(true);
@@ -135,6 +143,27 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const stopCamera = () => {
     setCameraActive(false);
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
+
+  const registerFace = async () => {
+    try {
+      setIsRegistering(true);
+      const res = await fetch(`${AI_ENGINE_URL}/register_face`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userRef.current?._id || userRef.current?.id })
+      });
+      if (res.ok) {
+        setFaceRegistered(true);
+        alert("Face registered successfully!");
+      } else {
+        alert("Failed to register face. Make sure your face is clearly visible.");
+      }
+    } catch(e) {
+      alert("Error connecting to AI engine.");
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   const switchExercise = (exercise: "squat" | "pushup") => {
@@ -240,6 +269,12 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                     <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--accent-2)' }}>{aiStats?.stage?.toUpperCase() || '—'}</div>
                     <div style={{ fontSize: '0.8rem', color: '#aaa' }}>STAGE</div>
                   </div>
+                  {exerciseType === 'mixed' && (
+                    <div style={{ padding: '1rem 2rem', borderRadius: '12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: aiStats?.trust_score < 50 ? '#ef4444' : '#10b981' }}>{aiStats?.trust_score ?? 100}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#aaa' }}>TRUST SCORE</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Feedback */}
@@ -278,6 +313,29 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                 <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: '2rem' }}>
                   {exerciseType === 'mixed' ? 'Choose which exercise to track:' : 'Click to start AI tracking.'}
                 </p>
+                {exerciseType === 'mixed' && !faceRegistered ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                    {isRegistering && (
+                      <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '2px solid #10b981', marginBottom: '1rem', width: '100%', maxWidth: '600px', background: '#000' }}>
+                        <img src={`${AI_ENGINE_URL}/video_feed`} alt="Registration Preview" style={{ width: '100%', maxHeight: '480px', objectFit: 'contain', display: 'block' }} />
+                        <div style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 12px', borderRadius: '20px', background: 'rgba(16,185,129,0.85)', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          📸 SCANNING
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!isRegistering && (
+                      <button onClick={registerFace} style={{
+                        padding: '1rem 2rem', borderRadius: '30px', background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#fff', fontSize: '1.1rem', fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                        boxShadow: '0 0 20px rgba(16,185,129,0.3)', transition: 'transform 0.15s'
+                      }}>
+                        📸 Register Face Angles
+                      </button>
+                    )}
+                    <p style={{ fontSize: '0.8rem', color: '#aaa', maxWidth: '350px', textAlign: 'center' }}>Anti-spoofing is enabled. During the 5-second capture, slowly turn your head left and right to allow the AI to learn your face from different angles.</p>
+                  </div>
+                ) : (
                 <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                   {(exerciseType === 'squat' || exerciseType === 'mixed') && (
                     <button onClick={() => startCamera('squat')} style={{
@@ -300,6 +358,7 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
                     </button>
                   )}
                 </div>
+                )}
               </div>
             )}
           </div>
