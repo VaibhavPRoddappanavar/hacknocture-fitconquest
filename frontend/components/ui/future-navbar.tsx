@@ -57,22 +57,6 @@ export function FutureNavbar() {
                   Leaderboard
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/features"
-                  className="hover:text-white transition-colors"
-                >
-                  Features
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="hover:text-white transition-colors"
-                >
-                  Contact
-                </Link>
-              </li>
             </ul>
 
             <div className="hidden lg:flex items-center gap-3 text-[10px] font-mono text-zinc-500 border-l border-white/10 pl-6 tracking-widest">
