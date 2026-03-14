@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: fitconquest-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: MONGODB_URI
+        fromDatabase:
+          name: fitconquest-db
+          property: connectionString

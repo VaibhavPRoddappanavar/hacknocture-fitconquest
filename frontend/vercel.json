@@ -1,0 +1,10 @@
+{
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "nodeVersion": "18.x",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@fitconquest_backend_url"
+  },
+  "envPrefix": "NEXT_PUBLIC_"
+}
