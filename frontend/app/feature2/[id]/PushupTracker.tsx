@@ -5,8 +5,9 @@ import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 
 // ── Landmark indices ─────────────────────────────────────────────
 const L_SHOULDER = 11, R_SHOULDER = 12;
+const L_ELBOW = 13, R_ELBOW = 14;
+const L_WRIST = 15, R_WRIST = 16;
 const L_HIP = 23, R_HIP = 24;
-const L_KNEE = 25, R_KNEE = 26;
 const L_ANKLE = 27, R_ANKLE = 28;
 
 const CONNECTIONS = [
@@ -25,7 +26,7 @@ function calcAngle(a: number[], b: number[], c: number[]) {
   return angle;
 }
 
-export default function SquatTracker({ onRep, onStatsUpdate, isPaused = false }: { onRep: (num: number) => void, onStatsUpdate: (stats: any) => void, isPaused?: boolean }) {
+export default function PushupTracker({ onRep, onStatsUpdate, isPaused = false }: { onRep: (num: number) => void, onStatsUpdate: (stats: any) => void, isPaused?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -121,7 +122,8 @@ export default function SquatTracker({ onRep, onStatsUpdate, isPaused = false }:
         const results = landmarkerRef.current.detectForVideo(video, ts);
 
         const state = stateRef.current;
-        let kneeAngle = 0;
+        let elbowAngle = 0;
+        let bodyAngle = 0;
 
         if (results.landmarks && results.landmarks.length > 0) {
           const lms = results.landmarks[0];
@@ -131,61 +133,62 @@ export default function SquatTracker({ onRep, onStatsUpdate, isPaused = false }:
           // Helper to map 0..1 to canvas pixel coords (FLIPPED for mirroring)
           const pt = (idx: number) => [(1 - lms[idx].x) * w, lms[idx].y * h];
 
-          const leftVis = lms[L_HIP].visibility || 0;
-          const rightVis = lms[R_HIP].visibility || 0;
+          const leftVis = lms[L_SHOULDER].visibility || 0;
+          const rightVis = lms[R_SHOULDER].visibility || 0;
 
-          let hip, knee, ankle, shoulder;
+          let shoulder, elbow, wrist, hip, ankle;
           if (leftVis >= rightVis) {
-            hip = pt(L_HIP);
-            knee = pt(L_KNEE);
-            ankle = pt(L_ANKLE);
             shoulder = pt(L_SHOULDER);
+            elbow = pt(L_ELBOW);
+            wrist = pt(L_WRIST);
+            hip = pt(L_HIP);
+            ankle = pt(L_ANKLE);
           } else {
-            hip = pt(R_HIP);
-            knee = pt(R_KNEE);
-            ankle = pt(R_ANKLE);
             shoulder = pt(R_SHOULDER);
+            elbow = pt(R_ELBOW);
+            wrist = pt(R_WRIST);
+            hip = pt(R_HIP);
+            ankle = pt(R_ANKLE);
           }
 
-          kneeAngle = calcAngle(hip, knee, ankle);
-          const hipAngle = calcAngle(shoulder, hip, knee);
+          elbowAngle = calcAngle(shoulder, elbow, wrist);
+          bodyAngle = calcAngle(shoulder, hip, ankle);
 
           let feedback_lines: string[] = [];
 
-          let flippedKneeX, flippedAnkleX;
-          if (leftVis >= rightVis) {
-            flippedKneeX = 1 - lms[L_KNEE].x;
-            flippedAnkleX = 1 - lms[L_ANKLE].x;
+          const DOWN_ANGLE = 90;
+          const UP_ANGLE = 160;
+          const HIP_SAG_LIMIT = 150;
+
+          if (elbowAngle < DOWN_ANGLE) {
+            state.stage = "down";
+          }
+          if (elbowAngle > UP_ANGLE && state.stage === "down") {
+            state.stage = "up";
+            if (!isPausedRef.current) {
+              state.counter += 1;
+              onRep(1);
+            }
+          }
+
+          if (state.stage === "down") {
+            if (elbowAngle > 110) {
+              feedback_lines.push("Go lower - chest should nearly touch the ground");
+            } else {
+              feedback_lines.push("Good depth!");
+            }
+          }
+
+          if (bodyAngle < HIP_SAG_LIMIT) {
+            feedback_lines.push("Hips sagging - tighten your core!");
+          } else if (bodyAngle > 175) {
+            feedback_lines.push("Hips piking up - lower your hips in line");
           } else {
-            flippedKneeX = 1 - lms[R_KNEE].x;
-            flippedAnkleX = 1 - lms[R_ANKLE].x;
+            feedback_lines.push("Good body alignment!");
           }
 
-          if (flippedKneeX - flippedAnkleX > 0.05) {
-             feedback_lines.push("Knees going too far forward!");
-          }
-          if (hipAngle < 60) {
-             feedback_lines.push("Keep your back more upright!");
-          }
-
-          if (kneeAngle > 160) {
-             if (state.stage === "down") {
-                 if (!isPausedRef.current) {
-                     state.counter += 1;
-                     onRep(1);
-                 }
-                 state.feedback = "Rep complete! Good job";
-             }
-             state.stage = "up";
-             if (feedback_lines.length === 0 && state.stage === "up" && !state.feedback.includes("complete")) {
-                 state.feedback = "Standing - go down to squat";
-             }
-          }
-          if (kneeAngle < 90 && state.stage === "up") {
-             state.stage = "down";
-             if (feedback_lines.length === 0) {
-                 state.feedback = "Good depth! Now push back up";
-             }
+          if (state.stage === "up" && elbowAngle < 155) {
+            feedback_lines.push("Fully extend your arms at the top");
           }
 
           if (feedback_lines.length > 0) {
@@ -211,16 +214,18 @@ export default function SquatTracker({ onRep, onStatsUpdate, isPaused = false }:
           }
 
           ctx.font = "18px Arial";
-          ctx.fillStyle = "yellow";
-          ctx.fillText(`${Math.floor(kneeAngle)} deg`, knee[0] + 10, knee[1]);
+          ctx.fillStyle = "aqua";
+          ctx.fillText(`${Math.floor(elbowAngle)} deg`, elbow[0] + 10, elbow[1]);
+          ctx.fillStyle = "orange";
+          ctx.fillText(`${Math.floor(bodyAngle)} deg`, hip[0] + 10, hip[1]);
         }
 
         onStatsUpdate({
-          exercise: "squat",
+          exercise: "pushup",
           count: state.counter,
           stage: state.stage,
           feedback: state.feedback.split(" | "),
-          angles: { knee_angle: Math.floor(kneeAngle) }
+          angles: { elbow_angle: Math.floor(elbowAngle), body_angle: Math.floor(bodyAngle) }
         });
       }
     }

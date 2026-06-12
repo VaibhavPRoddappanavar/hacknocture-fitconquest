@@ -3,9 +3,10 @@
 import { useEffect, useState, useRef, use } from "react";
 import io from "socket.io-client";
 import Link from "next/link";
+import PushupTracker from "./PushupTracker";
+import SquatTracker from "./SquatTracker";
 
 let socket: any;
-const AI_ENGINE_URL = "http://localhost:5050";
 
 function formatTime(ms: number) {
   const totalSec = Math.floor(ms / 1000);
@@ -23,8 +24,19 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
   const [activeExercise, setActiveExercise] = useState<"squat" | "pushup">("squat");
   const [aiStats, setAiStats] = useState<any>(null);
 
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
-  const prevCountRef = useRef(0);
+  // Health check states
+  const [healthChecked, setHealthChecked] = useState(false);
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthForm, setHealthForm] = useState({ age: '', weight: '', conditions: '' });
+  const [healthAdvice, setHealthAdvice] = useState<string | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const exerciseToStartRef = useRef<"squat" | "pushup" | null>(null);
+  
+  const [aiLimit, setAiLimit] = useState<number | null>(null);
+  const [warningLimit, setWarningLimit] = useState<number | null>(null);
+  const [nextMilestone, setNextMilestone] = useState<number | null>(null);
+  const nextMilestoneRef = useRef<number | null>(null);
+
   const challengeRef = useRef<any>(null);
   const userRef = useRef<any>(null);
   const activeExerciseRef = useRef<"squat" | "pushup">("squat");
@@ -49,7 +61,6 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
     return () => {
       if (socket) socket.disconnect();
-      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [challengeId]);
 
@@ -100,7 +111,54 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
     });
   };
 
+  const submitHealthCheck = async () => {
+    setHealthLoading(true);
+    setHealthAdvice(null);
+    try {
+      const challengeDetails = (challenge?.exerciseType === 'mixed' || !challenge?.exerciseType)
+        ? `${challenge.targetSquats} Squats and ${challenge.targetPushups} Pushups`
+        : challenge.exerciseType === 'squat'
+          ? `${challenge.targetSquats} Squats`
+          : `${challenge.targetPushups} Pushups`;
+          
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/health/check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ ...healthForm, challengeDetails })
+      });
+      const data = await res.json();
+      if (res.ok && data.advice) {
+        setHealthAdvice(data.advice);
+        if (data.max_safe_reps) {
+          setAiLimit(data.max_safe_reps);
+        }
+      } else {
+        setHealthAdvice("We couldn't reach the AI. Please proceed with caution if you feel safe.");
+      }
+    } catch (e) {
+      setHealthAdvice("We couldn't reach the AI. Please proceed with caution if you feel safe.");
+    }
+    setHealthLoading(false);
+  };
+
+  const proceedAfterHealthCheck = () => {
+    setShowHealthModal(false);
+    setHealthChecked(true);
+    if (exerciseToStartRef.current) {
+      startCamera(exerciseToStartRef.current);
+    }
+  };
+
   const startCamera = async (exercise: "squat" | "pushup") => {
+    if (!healthChecked) {
+      exerciseToStartRef.current = exercise;
+      setShowHealthModal(true);
+      return;
+    }
+
     try {
       setActiveExercise(exercise);
       activeExerciseRef.current = exercise;
@@ -111,30 +169,36 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
         socket.emit("team_start_workout", { challengeId, teamId: myTeam._id });
       }
 
-      await fetch(`${AI_ENGINE_URL}/exercise`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exercise }) });
-      await fetch(`${AI_ENGINE_URL}/reset`, { method: "POST" });
       setCameraActive(true);
-      prevCountRef.current = 0;
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await fetch(`${AI_ENGINE_URL}/stats`);
-          if (res.ok) {
-            const data = await res.json();
-            setAiStats(data);
-            const newReps = data.count - prevCountRef.current;
-            if (newReps > 0) { emitRep(newReps); prevCountRef.current = data.count; }
-          }
-        } catch (e) { }
-      }, 500);
+      setWarningLimit(null);
+      nextMilestoneRef.current = aiLimit;
+      setNextMilestone(aiLimit);
+      setAiStats(null);
     } catch (e) {
-      alert("Could not connect to AI Engine. Run: python app.py");
+      console.error(e);
+    }
+  };
+
+  const handleStatsUpdate = (stats: any) => {
+    setAiStats(stats);
+    if (nextMilestoneRef.current !== null && stats.count >= nextMilestoneRef.current) {
+        if (warningLimit === null) {
+            setWarningLimit(nextMilestoneRef.current);
+        }
+    }
+  };
+
+  const continueTracking = async () => {
+    if (aiLimit !== null && nextMilestoneRef.current !== null) {
+      const next = nextMilestoneRef.current + aiLimit;
+      nextMilestoneRef.current = next;
+      setNextMilestone(next);
+      setWarningLimit(null);
     }
   };
 
   const stopCamera = () => {
     setCameraActive(false);
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
   const switchExercise = (exercise: "squat" | "pushup") => {
@@ -190,6 +254,37 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="feature-page" style={{ padding: '8rem 5% 4rem' }}>
+      {showHealthModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(5px)' }}>
+          <div style={{ background: 'var(--card-bg)', border: '1px solid rgba(99,102,241,0.4)', padding: '2.5rem', borderRadius: '24px', maxWidth: '500px', width: '100%', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => setShowHealthModal(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'transparent', border: 'none', color: '#aaa', fontSize: '1.2rem', cursor: 'pointer' }}>✖</button>
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '1rem', color: '#fff', fontWeight: 'bold' }}>⚕️ Health & Safety Check</h2>
+            <p style={{ color: '#aaa', marginBottom: '2rem', fontSize: '0.95rem', lineHeight: '1.6' }}>Before you start sweating, let our Groq-powered AI evaluate if this physical challenge is safe for you based on any health conditions, prior injuries, or age-related parameters.</p>
+            
+            {!healthAdvice ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <input type="number" placeholder="Age" value={healthForm.age} onChange={e => setHealthForm({...healthForm, age: e.target.value})} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: '1rem' }} />
+                <input type="number" placeholder="Weight (kg)" value={healthForm.weight} onChange={e => setHealthForm({...healthForm, weight: e.target.value})} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: '1rem' }} />
+                <textarea placeholder="Any medical conditions or prior injuries? (e.g., Asthma, Bad knees, Heart conditions)" value={healthForm.conditions} onChange={e => setHealthForm({...healthForm, conditions: e.target.value})} rows={3} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: '1rem', resize: 'vertical' }}></textarea>
+                <button onClick={submitHealthCheck} disabled={healthLoading} style={{ padding: '1.2rem', borderRadius: '12px', background: 'linear-gradient(45deg, var(--accent-1), #818cf8)', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', opacity: healthLoading ? 0.7 : 1, marginTop: '1rem' }}>
+                  {healthLoading ? 'Analyzing using Groq...' : 'Get AI Advice'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ padding: '1.5rem', borderRadius: '16px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.3)', color: '#fff', lineHeight: '1.6' }}>
+                  <strong style={{ color: 'var(--accent-2)', fontSize: '1.1rem', display: 'block', marginBottom: '0.8rem' }}>🤖 AI Health Advisor says:</strong>
+                  <span style={{ fontSize: '1rem', opacity: 0.9 }}>{healthAdvice}</span>
+                </div>
+                <button onClick={proceedAfterHealthCheck} style={{ padding: '1.2rem', borderRadius: '12px', background: 'rgba(74,222,128,0.15)', border: '1px solid #4ade80', color: '#4ade80', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer' }}>
+                  Acknowledge and Start Challenge
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <Link href="/feature2" className="back-link" style={{ marginBottom: '2rem' }}>← Back to Challenges</Link>
 
       {/* Header */}
@@ -221,13 +316,24 @@ export default function Arena({ params }: { params: Promise<{ id: string }> }) {
               <div>
                 {/* Video */}
                 <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', border: '2px solid rgba(99,102,241,0.3)', marginBottom: '1.5rem', background: '#000' }}>
-                  <img src={`${AI_ENGINE_URL}/video_feed`} alt="AI Detection" style={{ width: '100%', maxHeight: '480px', objectFit: 'contain', display: 'block' }} />
-                  <div style={{ position: 'absolute', top: '12px', left: '12px', padding: '4px 12px', borderRadius: '20px', background: activeExercise === 'squat' ? 'rgba(99,102,241,0.85)' : 'rgba(6,182,212,0.85)', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    {activeExercise === 'squat' ? '🦵 SQUATS' : '💪 PUSHUPS'}
-                  </div>
-                  <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '20px', background: 'rgba(255,50,50,0.85)', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#fff', animation: 'pulse 1.5s infinite' }}></span>LIVE
-                  </div>
+                  {activeExercise === 'pushup' ? (
+                     <PushupTracker isPaused={warningLimit !== null} onRep={(n) => emitRep(n)} onStatsUpdate={handleStatsUpdate} />
+                  ) : (
+                     <SquatTracker isPaused={warningLimit !== null} onRep={(n) => emitRep(n)} onStatsUpdate={handleStatsUpdate} />
+                  )}
+                  
+                  {warningLimit !== null && (
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: '2rem', textAlign: 'center', backdropFilter: 'blur(8px)' }}>
+                          <div style={{ fontSize: '4rem', marginBottom: '1rem', animation: 'pulse 1.5s infinite' }}>⚠️</div>
+                          <h3 style={{ color: '#ef4444', fontSize: '1.8rem', marginBottom: '1rem', fontWeight: 'bold' }}>Safety Limit Reached</h3>
+                          <p style={{ color: '#fff', fontSize: '1.1rem', marginBottom: '2rem', lineHeight: '1.6', maxWidth: '400px' }}>
+                             You have crossed the {warningLimit} {activeExercise} threshold determined by the AI. This might be dangerous to proceed.
+                          </p>
+                          <button onClick={continueTracking} style={{ padding: '1rem 2rem', background: 'rgba(239, 68, 68, 0.1)', border: '2px solid #ef4444', color: '#ef4444', fontWeight: 'bold', borderRadius: '12px', cursor: 'pointer', fontSize: '1.1rem', transition: 'all 0.2s' }} onMouseOver={(e: any) => e.target.style.background='rgba(239, 68, 68, 0.2)'} onMouseOut={(e: any) => e.target.style.background='rgba(239, 68, 68, 0.1)'}>
+                               I Understand, Continue
+                          </button>
+                      </div>
+                  )}
                 </div>
 
                 {/* Stats */}

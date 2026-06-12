@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+import { FutureNavbar } from "@/components/ui/future-navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,19 +36,7 @@ export default function RootLayout({
         <div className="bg-glow bg-glow-2" />
 
         {/* Navbar */}
-        <nav className="navbar" id="navbar">
-          <Link href="/" className="navbar-logo">
-            FitConquest
-          </Link>
-          <ul className="navbar-links">
-            <li>
-              <Link href="/feature1">Feature 1</Link>
-            </li>
-            <li>
-              <Link href="/feature2">Feature 2</Link>
-            </li>
-          </ul>
-        </nav>
+        <FutureNavbar />
 
         {children}
       </body>
